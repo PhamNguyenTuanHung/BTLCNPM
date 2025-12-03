@@ -1,0 +1,7 @@
+[
+  {"student_id": "A001", "month": "2025-11", "meals_eaten_days": 20, "base_fee": 3000000, "total_fee": 3500000, "paid_status": true},
+  {"student_id": "B002", "month": "2025-11", "meals_eaten_days": 18, "base_fee": 3000000, "total_fee": 3450000, "paid_status": false},
+  {"student_id": "C003", "month": "2025-11", "meals_eaten_days": 20, "base_fee": 3000000, "total_fee": 3500000, "paid_status": true},
+  {"student_id": "D004", "month": "2025-11", "meals_eaten_days": 19, "base_fee": 3000000, "total_fee": 3475000, "paid_status": false},
+  {"student_id": "E005", "month": "2025-11", "meals_eaten_days": 15, "base_fee": 3000000, "total_fee": 3375000, "paid_status": true}
+]

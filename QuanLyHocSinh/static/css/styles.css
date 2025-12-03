@@ -1,0 +1,1456 @@
+/* ===================================================================
+   I. CUSTOM COLORS & VARIABLES
+   =================================================================== */
+:root {
+    /* Base Colors */
+    --color-white: #ffffff;
+    --color-background: #f8f8fa; /* Slate-50 equivalent */
+    --color-sidebar-bg: #ffffff;
+    --color-border: #e2e8f0; /* Slate-200 equivalent */
+    --color-border-light: #f1f5f9; /* Slate-100 equivalent */
+    --color-slate-lightest: #f1f5f9; /* Dùng cho nền header/hover nhẹ */
+
+    /* Text Colors */
+    --color-text-dark: #0f172a; /* Slate-900 equivalent */
+    --color-text-medium: #475569; /* Slate-600 equivalent */
+    --color-text-light: #64748b; /* Slate-500 equivalent */
+
+    /* Primary & Accent (Rose/Pink) */
+    --color-primary-start: #F43F5E; /* Rose-500 */
+    --color-primary-end: #DB2777; /* Pink-600 */
+    --color-primary-dark: #BE123C; /* Rose-700 */
+    --color-rose-100: #FFE4E6;
+
+    /* Gender Tags */
+    --color-male-bg: #DBEAFE; /* Blue-100 */
+    --color-male-text: #2563EB; /* Blue-700 */
+    --color-female-bg: #FCE7F3; /* Pink-100 */
+    --color-female-text: #DB2777; /* Pink-600 */
+
+    /* Health/Status Indicators */
+    --color-success-light: #D1FAE5; /* Green-50 */
+    --color-success-dark: #059669; /* Green-600 */
+    --color-danger-light: #FEE2E2; /* Red-100 */
+    --color-danger-dark: #DC2626; /* Red-600 */
+    --color-warning-dark: #f59e0b; /* Amber/Orange */
+    --color-info-dark: #2a9d8f; /* Teal (for Invoice/Export) */
+
+    /* Action Buttons & Hover Backgrounds */
+    --color-action-delete-bg: #FEF2F2; /* Red-50 */
+    --color-action-delete-text: #DC2626;
+    --color-action-edit-bg: #F1F5F9; /* Slate-100/Hover BG */
+    --color-hover-border: #e2e8f0;
+}
+
+/* ===================================================================
+   II. BASE RESET & TYPOGRAPHY
+   =================================================================== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--color-background);
+    color: var(--color-text-dark);
+    line-height: 1.5;
+}
+
+h1, h2, h3 {
+    font-weight: 500;
+}
+
+h1 {
+    font-size: 1.5rem;
+}
+
+h2 {
+    font-size: 1.25rem;
+}
+
+
+/* ===================================================================
+   III. LAYOUT & STRUCTURE
+   =================================================================== */
+.app-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #f3f4f6;
+    width: 90%;
+    margin: 0 auto;
+    padding: 1rem 0;
+    box-sizing: border-box;
+}
+
+.main-layout {
+    display: flex;
+    flex: 1;
+    gap: 1.5rem;
+    padding-top: 1rem;
+}
+
+/* Main Content Area */
+.main-layout main {
+    flex: 1;
+    background: var(--color-white);
+    border-radius: 8px;
+    padding: 1.5rem;
+    overflow-y: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    box-sizing: border-box;
+}
+
+.page-content-wrapper {
+    width: 100%;
+}
+
+/* Common Card Style */
+.content-card {
+    background-color: var(--color-white);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--color-border);
+    margin-bottom: 1.5rem;
+}
+
+
+/* ===================================================================
+   IV. HEADER & NAVIGATION (TOP & SIDEBAR)
+   =================================================================== */
+
+/* --- Top Header --- */
+.main-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    width: 100%;
+    background-color: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.main-header .header-content {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    box-sizing: border-box;
+}
+
+.user-info-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.school-logo-wrapper {
+    background: linear-gradient(to bottom right, var(--color-primary-start), var(--color-primary-end));
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.icon-school {
+    width: 1.5rem;
+    height: 1.5rem;
+    color: var(--color-white);
+}
+
+.teacher-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.teacher-name {
+    color: var(--color-text-medium);
+}
+
+.role-tag {
+    background-color: var(--color-rose-100);
+    color: var(--color-primary-dark);
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.btn-notification {
+    background: none;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.15s ease;
+}
+
+.btn-notification:hover {
+    background-color: var(--color-action-edit-bg);
+}
+
+.icon-bell {
+    width: 1.25rem;
+    height: 1.25rem;
+    color: var(--color-text-medium);
+}
+
+.notification-badge {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    background-color: var(--color-primary-start);
+    border-radius: 50%;
+}
+
+.btn-logout {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--color-action-edit-bg);
+    color: var(--color-text-medium);
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    font-weight: 500;
+}
+
+.btn-logout:hover {
+    background-color: var(--color-border);
+}
+
+.icon-logout {
+    width: 1rem;
+    height: 1rem;
+}
+
+.fullscreen-strip {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--color-text-dark);
+    color: var(--color-white);
+    padding: 0.5rem 0;
+    font-size: 0.8rem;
+}
+
+.btn-exit-fullscreen {
+    background: none;
+    border: none;
+    color: var(--color-white);
+    font-weight: bold;
+    margin-left: 0.5rem;
+    cursor: pointer;
+}
+
+/* --- Sidebar --- */
+.main-layout aside {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--color-white);
+    border-radius: 8px;
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+.menu-title {
+    color: var(--color-text-medium);
+    margin-bottom: 1rem;
+    padding: 0 1rem;
+    font-weight: 500;
+}
+
+.nav-menu {
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-item {
+    width: calc(100% - 1rem);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: none;
+    background: none;
+    color: var(--color-text-medium);
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-radius: 0.75rem;
+    margin-inline: 0.5rem;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.nav-item:hover:not(.active) {
+    background-color: var(--color-action-edit-bg);
+}
+
+.nav-item.active {
+    background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+    color: var(--color-white);
+    box-shadow: 0 4px 6px rgba(244, 63, 94, 0.3);
+}
+
+.icon-nav {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+
+/* ===================================================================
+   V. CONTROL PANEL (Common & Specific)
+   =================================================================== */
+
+/* --- Common Control Panel Style --- */
+.control-panel, .control-panel-new {
+    background-color: var(--color-white);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--color-border);
+    margin-bottom: 1.5rem;
+}
+
+.control-header, .control-header-new {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.control-panel h2, .control-panel-new .current-date-display {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--color-text-dark);
+}
+
+.student-count-text {
+    color: var(--color-text-medium);
+    font-size: 1rem;
+}
+
+.count-highlight {
+    color: var(--color-primary-start);
+    font-weight: 600;
+}
+
+.subtitle {
+    font-size: 0.95rem;
+    color: var(--color-text-medium);
+    margin-top: 0.25rem;
+}
+
+/* --- Action Buttons (Add/Export) --- */
+.btn-add-student {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+    color: var(--color-white);
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(244, 63, 94, 0.2);
+    font-weight: 500;
+}
+
+.btn-add-student:hover {
+    opacity: 0.9;
+    box-shadow: 0 10px 15px rgba(244, 63, 94, 0.3);
+}
+
+#export-fee-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(to right, var(--color-success-dark), #10B981);
+    color: var(--color-white);
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(5, 150, 105, 0.2);
+    font-weight: 500;
+}
+
+#export-fee-btn:hover {
+    opacity: 0.9;
+    box-shadow: 0 8px 15px rgba(5, 150, 105, 0.3);
+}
+
+.icon-plus {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+/* --- Search Box --- */
+.search-box {
+    margin-top: 1.5rem;
+    position: relative;
+}
+
+.icon-search {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.25rem;
+    height: 1.25rem;
+    color: var(--color-text-light);
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 3rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    font-size: 1rem;
+}
+
+.search-input:focus {
+    border-color: var(--color-primary-start);
+    box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.2);
+}
+
+/* --- Date/Select Picker --- */
+.date-picker {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.date-picker label, .control-header label {
+    font-weight: 500;
+    color: var(--color-text-medium);
+    white-space: nowrap;
+}
+
+.date-picker input[type="date"], #meal-day {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.date-picker input[type="date"]:hover, #meal-day:hover {
+    border-color: var(--color-primary-start);
+}
+
+/* --- Save All Button (Health Management) --- */
+.btn-save-all {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    color: var(--color-white);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+    background: linear-gradient(to right, #10B981, #059669);
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.4);
+}
+
+.btn-save-all:hover {
+    opacity: 0.9;
+    box-shadow: 0 6px 15px rgba(16, 185, 129, 0.5);
+}
+
+.save-all-wrapper {
+    margin-top: 1.5rem;
+    text-align: center;
+}
+
+#save-all-btn {
+    padding: 0.8rem 2rem;
+    font-size: 1.1rem;
+    border: none;
+    border-radius: 8px;
+    background: var(--color-success-dark);
+    color: var(--color-white);
+    cursor: pointer;
+    transition: background-color 0.2s, box-shadow 0.2s;
+    font-weight: 500;
+}
+
+#save-all-btn:hover {
+    background-color: #047857;
+    box-shadow: 0 4px 8px rgba(5, 150, 105, 0.3);
+}
+
+
+/* ===================================================================
+   VI. STUDENT CARD (GRID & LIST)
+   =================================================================== */
+
+/* --- Card Grid Layout --- */
+.student-cards-grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(1, 1fr);
+}
+
+@media (min-width: 768px) {
+    .student-cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .student-cards-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* --- Individual Card Style --- */
+.student-card {
+    background-color: var(--color-white);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--color-border);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    cursor: pointer;
+}
+
+.student-card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    transform: translateY(-4px); /* Thêm hiệu ứng nâng nhẹ */
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12); /* Shadow đậm hơn khi hover */
+}
+
+/* Card Header */
+.card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.info-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Avatar */
+.avatar-wrapper {
+    width: 3.5rem; /* 56px */
+    height: 3.5rem; /* 56px */
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-wrapper.male {
+    background-color: var(--color-male-bg);
+}
+
+.avatar-wrapper.female {
+    background-color: var(--color-female-bg);
+}
+
+.icon-user {
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
+.icon-user.male {
+    color: var(--color-male-text);
+}
+
+.icon-user.female {
+    color: var(--color-female-text);
+}
+
+.student-name {
+    font-size: 1rem;
+    color: var(--color-text-dark);
+    font-weight: 400;
+}
+
+.student-age {
+    font-size: 1rem;
+    color: var(--color-text-light);
+}
+
+/* Gender Tag */
+.gender-tag {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.gender-tag.male {
+    background-color: var(--color-male-bg);
+    color: var(--color-male-text);
+}
+
+.gender-tag.female {
+    background-color: var(--color-female-bg);
+    color: var(--color-female-text);
+}
+
+/* Parent Info */
+.parent-info {
+    margin-bottom: 1rem;
+    color: var(--color-text-medium);
+    font-size: 0.9rem;
+}
+
+.parent-info span {
+    font-weight: 500;
+    color: var(--color-text-dark);
+}
+
+/* Health Section (Card) */
+.health-box {
+    background-color: var(--color-background);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.health-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.icon-health {
+    width: 1rem;
+    height: 1rem;
+    color: var(--color-primary-start);
+}
+
+.health-details {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    color: var(--color-text-medium);
+    font-size: 0.95rem;
+}
+
+.detail-label {
+    color: var(--color-text-light);
+    font-size: 0.875rem;
+}
+
+.temperature-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Temp Tag */
+.temp-tag {
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.temp-tag.normal {
+    background-color: var(--color-success-light);
+    color: var(--color-success-dark);
+}
+
+.temp-tag.high {
+    background-color: var(--color-danger-light);
+    color: var(--color-danger-dark);
+}
+
+/* Action Buttons (Card) */
+.card-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-action {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    font-weight: 500;
+}
+
+.btn-edit {
+    background-color: var(--color-action-edit-bg);
+    color: var(--color-text-medium);
+}
+
+.btn-edit:hover {
+    background-color: var(--color-border);
+}
+
+.btn-delete {
+    background-color: var(--color-action-delete-bg);
+    color: var(--color-action-delete-text);
+}
+
+.btn-delete:hover {
+    background-color: var(--color-danger-light);
+}
+
+.icon-action {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* ===================================================================
+   VII. MODAL (Popups)
+   =================================================================== */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-content {
+    background-color: var(--color-white);
+    padding: 1.5rem;
+    border-radius: 1rem;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    transform: scale(0.9);
+    transition: transform 0.3s ease-out;
+}
+
+.modal-overlay.active .modal-content {
+    transform: scale(1);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.btn-close-modal {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-text-medium);
+}
+
+.edit-form h4 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    color: var(--color-primary-start);
+    font-weight: 500;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+    color: var(--color-text-dark);
+}
+
+.form-group input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+    border-color: var(--color-primary-start);
+    outline: none;
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.form-group.half-width {
+    flex: 1;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.btn-save, .btn-cancel {
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.2s;
+}
+
+.btn-save {
+    background-color: var(--color-primary-start);
+    color: var(--color-white);
+    border: none;
+}
+
+.btn-save:hover {
+    opacity: 0.9;
+}
+
+.btn-cancel {
+    background-color: var(--color-action-edit-bg);
+    color: var(--color-text-medium);
+    border: 1px solid var(--color-border);
+}
+
+.btn-cancel:hover {
+    background-color: var(--color-border);
+}
+
+
+/* ===================================================================
+   VIII. DATA TABLE (Common Table Style)
+   =================================================================== */
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    font-size: 0.95rem;
+    table-layout: auto;
+}
+
+.data-table th, .data-table td {
+    border-bottom: 1px solid var(--color-border);
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    font-size: 0.85rem; /* Giảm font cho cả th/td */
+}
+
+.data-table th {
+    font-weight: 600;
+    color: var(--color-text-medium);
+    background-color: var(--color-background);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.025em;
+}
+
+.data-table tbody tr {
+    transition: background-color 0.15s;
+}
+
+.data-table tr:hover {
+    background-color: var(--color-action-edit-bg);
+}
+
+/* --- Table Text Styles (Status/Money) --- */
+.text-danger {
+    color: var(--color-danger-dark);
+    font-weight: 600;
+}
+
+.text-success {
+    color: var(--color-success-dark);
+    font-weight: 500;
+}
+
+.text-warning {
+    color: var(--color-warning-dark);
+    font-weight: 500;
+}
+
+.text-bold {
+    font-weight: 600;
+}
+
+.data-table .text-center {
+    text-align: center;
+}
+
+/* --- Table Action Buttons --- */
+.btn-edit-small, .btn-view-detail {
+    background: none;
+    border: 1px solid var(--color-border);
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--color-text-medium);
+}
+
+.btn-edit-small:hover, .btn-view-detail:hover {
+    border-color: var(--color-primary-start);
+    color: var(--color-primary-start);
+}
+
+.btn-action-fee {
+    display: inline-block;
+    padding: 0.4rem 0.6rem;
+    color: var(--color-white) !important;
+    border-radius: 6px;
+    text-decoration: none !important;
+    font-size: 0.75rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    white-space: nowrap;
+}
+
+.btn-action-fee:hover {
+    opacity: 0.9;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn-pay-fee {
+    background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+}
+
+.btn-export-invoice {
+    background: linear-gradient(to right, #2a9d8f, #219083);
+}
+
+/* --- Table Notes --- */
+.table-note {
+    font-size: 0.85rem;
+    color: var(--color-text-light);
+    margin-top: 1rem;
+}
+
+/* ===================================================================
+   IX. HEALTH DATA INPUTS (Table/Grid)
+   =================================================================== */
+
+/* Input Fields (Weight, Temp, etc.) */
+.data-table input[type="number"] {
+    width: 65px;
+    padding: 0.3rem 0.2rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    text-align: center;
+    transition: border-color 0.2s, background-color 0.2s;
+    background-color: var(--color-white);
+}
+
+.data-table input[type="number"]:focus:not([disabled]) {
+    border-color: var(--color-primary-start);
+    box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.2);
+    outline: none;
+}
+
+.data-table input[type="number"][disabled] {
+    background-color: var(--color-action-edit-bg);
+    cursor: not-allowed;
+}
+
+/* Note Textarea */
+.data-table .input-note {
+    width: 160px;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background-color: var(--color-white);
+    text-align: left;
+    transition: border-color 0.2s, background-color 0.2s;
+    height: auto;
+    min-height: 40px;
+    resize: vertical;
+    overflow-y: hidden;
+    white-space: pre-wrap;
+    vertical-align: top;
+}
+
+.data-table .input-note:focus:not([disabled]) {
+    border-color: var(--color-primary-start);
+    box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.2);
+    outline: none;
+}
+
+.data-table .input-note[disabled] {
+    background-color: var(--color-action-edit-bg);
+    cursor: not-allowed;
+}
+
+/* Status Text */
+.status-normal {
+    color: var(--color-success-dark);
+    font-weight: 600;
+}
+
+.status-high {
+    color: var(--color-danger-dark);
+    font-weight: 600;
+}
+
+/* --- Health Management New Grid UI --- */
+
+/* Progress Bar */
+.progress-section {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    background-color: var(--color-border-light);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.progress-text {
+    font-size: 0.9rem;
+    color: var(--color-text-medium);
+    margin: 0;
+}
+
+.progress-bar-container {
+    flex-grow: 1;
+    height: 6px;
+    background-color: var(--color-white);
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+    transition: width 0.5s ease;
+}
+
+.progress-count {
+    font-weight: 600;
+    color: var(--color-text-dark);
+    font-size: 0.9rem;
+}
+
+/* List Grid */
+.student-health-list {
+    background-color: var(--color-white);
+    border-radius: 1rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+.student-health-list-header,
+.student-health-card {
+    display: grid;
+    /* Cột: Tên trẻ, Cân nặng, Chiều cao, Nhiệt độ, Ghi chú, Lưu */
+    grid-template-columns: 200px repeat(4, 1fr) 100px;
+    gap: 10px;
+    align-items: center;
+    padding: 1rem 1.5rem;
+}
+
+.student-health-list-header {
+    background-color: var(--color-slate-lightest);
+    font-weight: 600;
+    color: var(--color-text-dark);
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.9rem;
+}
+
+.student-health-card {
+    border-bottom: 1px solid var(--color-border-light);
+    transition: background-color 0.2s;
+    font-size: 0.9rem;
+}
+
+.student-health-card:hover {
+    background-color: var(--color-slate-lightest);
+}
+
+.student-info-col {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    color: var(--color-text-dark);
+}
+
+.avatar-circle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: var(--color-border);
+    color: var(--color-text-medium);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: background-color 0.3s;
+}
+
+.avatar-circle.recorded {
+    background-color: var(--color-primary-start);
+    color: var(--color-white);
+}
+
+.input-health {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+    text-align: center;
+}
+
+.input-health:focus {
+    border-color: var(--color-primary-start);
+    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.1);
+    outline: none;
+}
+
+.status-indicator {
+    display: inline-block;
+    padding: 0.3rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-indicator.status-normal {
+    background-color: var(--color-success-light);
+    color: var(--color-success-dark);
+}
+
+.status-indicator.status-high {
+    background-color: var(--color-danger-light);
+    color: var(--color-danger-dark);
+}
+
+.btn-save-single {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-white);
+    cursor: pointer;
+    background-color: var(--color-primary-end);
+    transition: background-color 0.2s;
+}
+
+.btn-save-single:hover {
+    background-color: var(--color-primary-dark);
+}
+
+/* ===================================================================
+   X. MEAL TRACKING SPECIFIC
+   =================================================================== */
+
+.meal-table-wrapper {
+    overflow-x: auto;
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.meal-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    border: 1px solid var(--color-border);
+    min-width: 400px;
+}
+
+.meal-table th, .meal-table td {
+    border: 1px solid var(--color-border);
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+}
+
+.meal-table thead th {
+    background: var(--color-action-edit-bg);
+    color: var(--color-text-dark);
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.meal-table tbody tr:hover {
+    background-color: var(--color-action-edit-bg);
+}
+
+.meal-table tbody td:nth-child(1) {
+    text-align: center;
+    width: 40px;
+}
+
+.meal-table tbody td:nth-child(3) {
+    text-align: center;
+    width: 100px;
+}
+
+.meal-table .meal-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--color-primary-start);
+}
+
+.save-button-wrapper {
+    margin-top: 1.5rem;
+    text-align: right;
+}
+
+#save-meals {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    border: none;
+    border-radius: 0.75rem;
+    background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+    color: var(--color-white);
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(244, 63, 94, 0.2);
+}
+
+#save-meals:hover {
+    opacity: 0.9;
+    box-shadow: 0 8px 15px rgba(244, 63, 94, 0.3);
+}
+
+/* ===================================================================
+   XI. STATS & CHARTS
+   =================================================================== */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-box {
+    padding: 1.5rem;
+    border-radius: 1rem;
+    color: var(--color-white);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.stat-box .stat-label {
+    font-size: 1rem;
+    opacity: 0.8;
+}
+
+.stat-box .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-top: 0.5rem;
+}
+
+.stat-box.bg-rose {
+    background: linear-gradient(to right, var(--color-primary-start), var(--color-primary-end));
+}
+
+.stat-box.bg-blue {
+    background: linear-gradient(to right, #6366F1, #3B82F6);
+}
+
+.stat-box.bg-green {
+    background: linear-gradient(to right, #10B981, #059669);
+}
+
+.stat-box.bg-yellow {
+    background: linear-gradient(to right, #F59E0B, #D97706);
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.chart-container h3 {
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.5rem;
+}
+
+.chart-placeholder {
+    height: 300px;
+    background-color: var(--color-background);
+    border: 1px dashed var(--color-border);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--color-text-light);
+    font-style: italic;
+    border-radius: 0.5rem;
+}
+
+/* ===================================================================
+   XII. RESPONSIVE UTILITIES
+   =================================================================== */
+@media (max-width: 600px) {
+    .control-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .control-header > div:last-child {
+        margin-top: 1rem;
+    }
+}
+/* ===================================================================
+   IX. HEALTH DATA INPUTS (Cập nhật cho Ghi chú & Grid)
+   =================================================================== */
+
+/* --- CẬP NHẬT INPUT SỐ VÀ TEXTAREA GHI CHÚ BASE STYLE --- */
+.input-health {
+    width: 100%;
+    padding: 0.5rem 0.75rem; /* Padding vừa phải */
+    border: 1px solid var(--color-border);
+    border-radius: 8px; /* Bo góc mềm mại */
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+    text-align: center;
+    background-color: var(--color-white);
+}
+
+.input-health:focus {
+    border-color: var(--color-primary-start);
+    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.1);
+    outline: none;
+}
+
+/* 1. Tinh chỉnh Input Số (Cân nặng/Nhiệt độ) */
+.data-input-col input[type="number"] {
+    width: 80px; /* Chiều rộng cố định nhỏ */
+    padding: 0.5rem 0.3rem;
+    text-align: center;
+    font-weight: 500;
+}
+
+/* Style khi nhiệt độ cao */
+.data-input-col input[type="number"].status-high-input {
+    border-color: var(--color-danger-dark);
+    background-color: var(--color-danger-light);
+}
+
+/* 2. Tinh chỉnh Textarea Ghi chú (Quan trọng: Trông giống Input) */
+.input-note {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+
+    /* ẨN BIỂU TƯỢNG KÉO GIÃN GÓC */
+    resize: none;
+    overflow-y: hidden;
+
+    height: auto;
+    min-height: 40px;
+    max-height: 100px;
+    text-align: left;
+    font-size: 0.9rem; /* Đảm bảo font size nhất quán */
+}
+
+
+/* ===================================================================
+   HEALTH MANAGEMENT LIST (Grid Layout 5 Cột)
+   =================================================================== */
+
+/* Cấu hình Grid 5 Cột: Tên | Cân nặng | Nhiệt độ | Trạng thái | Ghi chú */
+.student-health-list-header,
+.student-health-card {
+    display: grid;
+    grid-template-columns: 200px 90px 90px 120px 1fr;
+    gap: 1.5rem;
+    align-items: center;
+    padding: 1rem 1.5rem;
+}
+
+/* Tinh chỉnh lại style chung cho cột Input để trông đẹp hơn */
+.student-health-card .data-input-col,
+.student-health-card .status-col {
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Căn Trạng thái/Ghi chú của thẻ con */
+.student-health-card .note-col {
+    display: flex;
+    align-items: flex-start;
+}
+
+/* Căn chỉnh header */
+.student-health-list-header {
+    background-color: var(--color-action-edit-bg);
+    font-weight: 600;
+    color: var(--color-text-dark);
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.student-health-list-header .header-col-name {
+    text-align: left;
+}

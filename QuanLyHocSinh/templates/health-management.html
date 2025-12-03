@@ -1,0 +1,119 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Quản lý Sức khỏe Trẻ em - Hoa Mai{% endblock %}
+
+{% block content %}
+<div class="page-content-wrapper">
+
+    <div class="control-panel-new">
+        <div class="control-header-new">
+            <div>
+                <h2 class="current-date-display">{{ selected_date }}</h2>
+                <p class="subtitle">Ghi nhận sức khỏe cho tất cả trẻ</p>
+            </div>
+        </div>
+
+        {% set completed = progress_stats.completed %}
+        {% set total = progress_stats.total %}
+        {% set percentage = progress_stats.percentage | round(0) %}
+
+        <div class="progress-section">
+            <p class="progress-text">Tiến độ ghi nhận</p>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" style="width: {{ percentage }}%;"></div>
+            </div>
+            <span class="progress-count">{{ completed }}/{{ total }}</span>
+        </div>
+    </div>
+
+    <div class="student-health-list">
+
+        {# CẬP NHẬT HEADER: 6 CỘT (Thêm Thao tác) #}
+        <div class="student-health-list-header" style="grid-template-columns: 180px 1fr 1fr 120px 1.5fr 100px;">
+            <div class="header-col-name">Tên trẻ</div>
+            <div class="header-col">Cân nặng</div>
+            <div class="header-col">Nhiệt độ</div>
+            <div class="header-col">Trạng thái</div>
+            <div class="header-col">Ghi chú</div>
+            <div class="header-col">Thao tác</div>
+        </div>
+
+        {% for student in students %}
+        {% set record = student.current_record %}
+        {% set can_edit = (selected_date == today) %}
+        {% set is_recorded = record and record.weight is not none and record.temp is not none %}
+
+        {# Logic tính toán trạng thái #}
+        {% set temp_val = record.temp|float if record and record.temp is not none and record.temp is not string else 0
+        %}
+        {% set is_high_temp = temp_val >= 37.5 %}
+        {% set status_text = 'Cao' if is_high_temp else 'Bình thường' %}
+
+
+        <div class="student-health-card" data-id="{{ student.id }}"
+             style="grid-template-columns: 180px 1fr 1fr 120px 1.5fr 100px;">
+
+            <div class="student-info-col">
+                {# Đã thêm avatar circle bị thiếu #}
+                <div class="avatar-circle {% if is_recorded %}recorded{% endif %}">
+                    {{ student.name[0] }}
+                </div>
+                <span class="student-name">{{ student.name }}</span>
+            </div>
+
+            <div class="data-input-col" data-label="Cân nặng">
+                <input type="number" step="0.1" value="{{ record.weight if record.weight else '' }}"
+                       {% if not can_edit %}disabled{% endif %}
+                       class="input-health input-weight">
+            </div>
+
+            {# Cột 3: Nhiệt độ #}
+            <div class="data-input-col" data-label="Nhiệt độ">
+                <input type="number" step="0.1" value="{{ record.temp if record.temp else '' }}"
+                       {% if not can_edit %}disabled{% endif %}
+                       class="input-health input-temp {% if is_high_temp %}status-high-input{% endif %}">
+            </div>
+
+            {# Cột 4: Trạng thái #}
+            <div class="status-col" data-label="Tình trạng">
+                <span class="status-indicator
+                    {% if is_high_temp %}status-high{% elif record.temp is not none %}status-normal{% endif %}">
+                    {% if record and record.temp is not none %}
+                        {{ status_text }}
+                    {% else %}-{% endif %}
+                </span>
+            </div>
+
+            {# Cột 5: Ghi chú #}
+            <div class="note-col" data-label="Ghi chú">
+                <textarea rows="1" class="input-health input-note"
+                          {% if not can_edit %}disabled{% endif %}
+                          placeholder="Ghi chú...">{{ record.note if record.note else '' }}</textarea>
+            </div>
+
+            {# CỘT MỚI: Thao tác (Lưu riêng) #}
+            <div class="action-col" data-label="Thao tác">
+                <button class="btn-save-single" data-student-id="{{ student.id }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                         class="icon-action">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <path d="M17 21v-8H7v8"></path>
+                        <path d="M7 3v4"></path>
+                        <path d="M17 3v4"></path>
+                    </svg>
+                    Lưu
+                </button>
+            </div>
+
+        </div>
+        {% endfor %}
+    </div>
+
+    <p class="table-note" style="margin-top: 2rem;">
+        Ghi chú: Chỉ số nhiệt độ trên 37.5°C sẽ được đánh dấu cảnh báo.
+    </p>
+
+
+</div>
+{%endblock%}

@@ -1,0 +1,211 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Bảng điều khiển Thống kê - Hoa Mai{% endblock %}
+
+{% block content %}
+<div class="page-content-wrapper">
+    
+    <div class="control-panel">
+        <div class="control-header">
+            <div>
+                <h2>Bảng điều khiển Thống kê</h2>
+                <p class="student-count-text">Tổng quan dữ liệu năm học: <span class="count-highlight">2025-2026</span></p>
+            </div>
+
+            {# NÚT HÀNH ĐỘNG #}
+            <button id="export-report-btn" class="btn-action-fee btn-export-invoice" style="background: linear-gradient(to right, #059669, #10B981);">
+                Xuất Báo cáo Chi tiết
+            </button>
+        </div>
+    </div>
+
+    {# --- STATS GRID (THẺ TÓM TẮT) --- #}
+    {% set total = stats.total_children | default(0) %}
+    {% set male = stats.male_count | default(0) %}
+    {% set female = stats.female_count | default(0) %}
+    {% set paid_ratio = stats.paid_ratio | default('0%') %}
+    {% set high_risk = stats.high_risk_children | default(0) %}
+
+    <div class="stats-grid">
+        <div class="stat-box bg-rose">
+            <p class="stat-label">Tổng số trẻ</p>
+            <p class="stat-value">{{ total }}</p>
+        </div>
+        <div class="stat-box bg-blue">
+            <p class="stat-label">Trẻ Nam / Nữ</p>
+            <p class="stat-value">{{ male }} / {{ female }}</p>
+        </div>
+        <div class="stat-box bg-green">
+            <p class="stat-label">Học phí đã thu (Tháng)</p>
+            <p class="stat-value">{{ paid_ratio }}</p>
+        </div>
+        <div class="stat-box bg-yellow">
+            <p class="stat-label">Trẻ cần theo dõi sức khỏe</p>
+            <p class="stat-value">{{ high_risk }}</p>
+        </div>
+    </div>
+
+    {# --- CHARTS GRID (BIỂU ĐỒ) --- #}
+    <div class="charts-grid">
+
+        {# 1. BIỂU ĐỒ GIỚI TÍNH #}
+        <div class="content-card chart-container">
+            <h3>Tỷ lệ trẻ Nam / Nữ</h3>
+            <div class="chart-canvas-wrapper">
+                <canvas id="genderChart"></canvas>
+            </div>
+        </div>
+
+        {# 2. BIỂU ĐỒ DOANH THU #}
+        <div class="content-card chart-container">
+            <h3>Tổng quan Doanh thu (Học phí & Dịch vụ)</h3>
+            <div class="chart-canvas-wrapper">
+                <canvas id="revenueChart"></canvas>
+            </div>
+        </div>
+
+        {# 3. BIỂU ĐỒ CÂN NẶNG #}
+        <div class="content-card chart-container">
+            <h3>Biểu đồ Cân nặng trung bình</h3>
+            <div class="chart-canvas-wrapper">
+                <canvas id="weightChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+{# SCRIPT VẼ BIỂU ĐỒ CHART.JS #}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Kiểm tra xem Chart.js đã được tải chưa
+        if (typeof Chart === 'undefined') {
+            console.error("Chart.js library not loaded.");
+            return;
+        }
+
+        // Lấy dữ liệu đã được truyền từ Flask và chuyển đổi an toàn thành đối tượng JavaScript
+        // Sử dụng | tojson để đảm bảo cú pháp JSON hợp lệ trong JS
+        const genderData = {{ gender_chart_data | tojson }};
+        const revenueData = {{ revenue_chart_data | tojson }};
+        const weightData = {{ weight_chart_data | tojson }};
+
+        // --- 1. BIỂU ĐỒ TỶ LỆ TRẺ NAM / NỮ (PIE CHART) ---
+        if (genderData && genderData.data && genderData.data.length > 0) {
+            const genderCtx = document.getElementById('genderChart').getContext('2d');
+            new Chart(genderCtx, {
+                type: 'pie',
+                data: {
+                    labels: genderData.labels,
+                    datasets: [{
+                        data: genderData.data,
+                        backgroundColor: genderData.colors,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed !== null) {
+                                        label += context.parsed + ' trẻ';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- 2. BIỂU ĐỒ TỔNG QUAN DOANH THU (DOUGHNUT CHART) ---
+        if (revenueData && revenueData.data && revenueData.data.length > 0) {
+            const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+            new Chart(revenueCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: revenueData.labels,
+                    datasets: [{
+                        data: revenueData.data,
+                        backgroundColor: revenueData.colors,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                         tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed !== null) {
+                                        const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                                        const percentage = total === 0 ? '0%' : (context.parsed / total * 100).toFixed(1) + '%';
+                                        label += context.parsed + ' hóa đơn (' + percentage + ')';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- 3. BIỂU ĐỒ CÂN NẶNG TRUNG BÌNH (LINE CHART) ---
+        if (weightData && weightData.data && weightData.data.length > 0) {
+            const weightCtx = document.getElementById('weightChart').getContext('2d');
+            new Chart(weightCtx, {
+                type: 'line',
+                data: {
+                    labels: weightData.labels,
+                    datasets: [{
+                        label: weightData.title,
+                        data: weightData.data,
+                        borderColor: '#1e90ff',
+                        backgroundColor: 'rgba(30, 144, 255, 0.2)',
+                        tension: 0.3,
+                        fill: true,
+                        pointBackgroundColor: '#1e90ff',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#1e90ff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Ngày' } },
+                        y: { title: { display: true, text: 'Cân nặng (kg)' } }
+                    }
+                }
+            });
+        }
+    });
+</script>
+
+{# Thêm CSS để kiểm soát kích thước canvas #}
+<style>
+    .chart-canvas-wrapper {
+        position: relative;
+        height: 300px;
+        width: 100%;
+        margin: auto;
+    }
+</style>
+{% endblock %}

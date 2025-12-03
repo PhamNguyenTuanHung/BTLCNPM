@@ -1,0 +1,24 @@
+[
+  {"record_id": 1008, "student_id": "A001", "date": "2025-11-25", "weight": 15.4, "temp": 36.7, "note": "Bình thường."},
+  {"record_id": 1009, "student_id": "B002", "date": "2025-11-25", "weight": 14.1, "temp": 37.5, "note": "Có dấu hiệu sốt nhẹ."},
+  {"record_id": 1010, "student_id": "C003", "date": "2025-11-25", "weight": 16.0, "temp": 36.5, "note": "Bình thường."},
+  {"record_id": 1011, "student_id": "D004", "date": "2025-11-25", "weight": 15.0, "temp": 36.9, "note": "Bình thường."},
+  {"record_id": 1012, "student_id": "E005", "date": "2025-11-25", "weight": 16.4, "temp": 37.0, "note": "Đã hạ nhiệt."},
+
+  {"record_id": 1013, "student_id": "A001", "date": "2025-11-26", "weight": 15.4, "temp": 36.8, "note": "Hoàn toàn bình thường."},
+  {"record_id": 1014, "student_id": "B002", "date": "2025-11-26", "weight": 14.2, "temp": 37.8, "note": "Sốt cao hơn hôm qua."},
+  {"record_id": 1015, "student_id": "C003", "date": "2025-11-26", "weight": 16.1, "temp": 36.5, "note": "Bình thường."},
+  {"record_id": 1016, "student_id": "D004", "date": "2025-11-26", "weight": 15.0, "temp": 36.9, "note": "Bình thường."},
+  {"record_id": 1017, "student_id": "E005", "date": "2025-11-26", "weight": 16.4, "temp": 37.1, "note": "Ổn định."},
+
+  {"record_id": 1018, "student_id": "A001", "date": "2025-11-27", "weight": 15.5, "temp": 36.8, "note": "Bình thường."},
+  {"record_id": 1019, "student_id": "B002", "date": "2025-11-27", "weight": 14.2, "temp": 37.7, "note": "Vẫn còn sốt nhẹ."},
+  {"record_id": 1020, "student_id": "C003", "date": "2025-11-27", "weight": 16.1, "temp": 36.5, "note": "Bình thường."},
+  {"record_id": 1021, "student_id": "D004", "date": "2025-11-27", "weight": 15.0, "temp": 36.9, "note": "Bình thường."},
+  {"record_id": 1022, "student_id": "E005", "date": "2025-11-27", "weight": 16.5, "temp": 37.3, "note": "Nhiệt độ tăng nhẹ."},
+
+  {"record_id": 1023, "student_id": "A001", "date": "2025-11-28", "weight": 15.5, "temp": 36.8, "note": "Hoạt động bình thường."},
+  {"record_id": 1024, "student_id": "B002", "date": "2025-11-28", "weight": 14.2, "temp": 37.8, "note": "Sốt nhẹ, mệt mỏi."},
+  {"record_id": 1025, "student_id": "C003", "date": "2025-11-28", "weight": 16.1, "temp": 36.5, "note": "Ngủ ngoan, không có vấn đề."},
+  {"record_id": 1026, "student_id": "D004", "date": "2025-11-28", "weight": 15.0, "temp": 36.9, "note": "Bình thường."}
+]

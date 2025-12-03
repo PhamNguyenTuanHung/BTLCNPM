@@ -1,0 +1,111 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Quản lý Học phí & Bữa ăn - Hoa Mai{% endblock %}
+
+{% block content %}
+
+<div class="page-content-wrapper">
+    <div class="control-panel">
+        <div class="control-header">
+            <div>
+                <h2>Quản lý Chi phí Bữa ăn & Học phí</h2>
+                <p class="student-count-text">Tháng hiện tại: <span class="count-highlight">Tháng 11/2025</span> | Đơn
+                    giá bữa ăn: <span class="count-highlight">{{ base_meal_cost | default(50000)  }} VND</span></p>
+            </div>
+            <button id="export-fee-btn" class="btn-action-fee btn-export-invoice" style="background: linear-gradient(to right, #059669, #10B981);">
+                Xuất Báo cáo Chi phí
+            </button>
+        </div>
+    </div>
+
+    <div class="stats-grid" style="margin-bottom: 2rem;">
+        <div class="stat-box bg-blue" style="background: linear-gradient(to right, #8B5CF6, #C084FC);">
+            <div class="stat-label">Học phí cơ bản</div>
+            <div class="stat-value">3.000.000 đ</div>
+            <div class="text-sm opacity-80 mt-1">Mỗi tháng</div>
+        </div>
+        <div class="stat-box bg-rose">
+            <div class="stat-label">Tiền ăn thêm </div>
+            <div class="stat-value">50.000 đ</div>
+            <div class="text-sm opacity-80 mt-1">Mỗi ngày</div>
+        </div>
+        <div class="stat-box bg-green">
+            <div class="stat-label">Tổng phí dự kiến</div>
+            <div class="stat-value">15.000.000 đ</div>
+            <div class="text-sm opacity-80 mt-1">Tháng này</div>
+        </div>
+    </div>
+
+    {# 📊 2. CHI TIẾT BẢNG DỮ LIỆU #}
+    <div class="content-card full-width">
+        <h3>Chi tiết Bữa ăn & Học phí</h3>
+        <div class="meal-table-wrapper">
+            <table class="data-table">
+                <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Tên trẻ</th>
+                    <th>Học phí cơ bản</th>
+                    <th>Bữa ăn & Chi phí</th>
+                    <th>Tổng cộng</th>
+                    <th>Trạng thái thanh toán</th>
+                    <th>Hành động</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for record in tuition_records %}
+                {# Sử dụng biến đã được tính toán trong hàm Flask /tuition #}
+                {% set total_meal_cost = record.total_meal_cost | default(0) %}
+                {% set base_fee = record.base_fee | default(3000000) %}
+                {% set total_fee = record.calculated_total_fee | default(base_fee + total_meal_cost) %}
+                {% set meals_eaten = record.meals_eaten_days | default(0) %}
+                {% set paid_status = record.paid_status | default(false) %}
+
+                <tr data-id="{{ record.student_id }}">
+                    <td data-label="STT">{{ loop.index }}</td>
+                    <td data-label="Tên trẻ">{{ record.name }}</td>
+                    <td data-label="Học phí cơ bản" class="text-bold">{{ "{:,.0f}".format(base_fee) }} đ</td>
+
+                    {# GỘP CỘT: Số ngày ăn thêm và Tiền ăn thêm #}
+                    <td data-label="Bữa ăn & Chi phí">
+                        <div style="font-size: 0.9em; color: var(--color-text-medium);">
+                            Số ngày ăn: <span class="text-bold">{{ meals_eaten }}</span>
+                        </div>
+                        <div class="text-warning text-bold" style="margin-top: 0.25em;">
+                            {{ "{:,.0f}".format(total_meal_cost) }} đ
+                        </div>
+                    </td>
+
+                    {# Tổng cộng #}
+                    <td data-label="Tổng phí phải thu (VND)" class="text-success text-bold">
+                        {{ "{:,.0f}".format(total_fee) }} đ
+                    </td>
+
+                    {# Trạng thái #}
+                    <td data-label="Trạng thái" class="{% if paid_status %}text-success{% else %}text-danger{% endif %}">
+                        {% if paid_status %}Đã thanh toán{% else %}Chưa thanh toán{% endif %}
+                    </td>
+
+                    {# Hành động #}
+                    <td data-label="Hành động">
+                        {% if paid_status %}
+                        <a href="/invoice/{{ record.student_id }}"
+                           class="btn-action-fee btn-export-invoice">
+                            Xuất HD
+                        </a>
+                        {% else %}
+                        <a href="/payment/{{ record.student_id }}"
+                           class="btn-action-fee btn-pay-fee">
+                            Nộp phí
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

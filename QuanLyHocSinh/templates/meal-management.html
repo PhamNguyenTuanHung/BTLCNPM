@@ -1,0 +1,157 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Quản lý Ăn uống Trẻ em - Hoa Mai{% endblock %}
+
+{% block content %}
+
+<div class="page-content-wrapper">
+
+
+    <div class="control-panel">
+        <div class="control-header">
+            <div>
+                <h2>Quản lý Bữa ăn Trẻ em</h2>
+                <p class="student-count-text">
+                    Tổng số trẻ đang theo dõi: <span class="count-highlight">{{ students|length }}</span>
+                </p>
+            </div>
+        </div>
+
+        <div class="date-picker" style="margin-top: 1rem;">
+            <label for="record-date">Chọn ngày:</label>
+            <input type="date" id="record-date" value="{{ today }}">
+        </div>
+    </div>
+
+    <div class="content-card full-width">
+        <h3>Cập nhật các học sinh ăn ngày {{selected_date}}</h3>
+        <p class="table-note">Tick ✔ nếu trẻ đã ăn (áp dụng cho toàn bộ bữa ăn trong ngày).</p>
+
+        <div class="meal-table-wrapper">
+            <table class="meal-table">
+                <thead>
+                <tr>
+                    <th style="width:40px;">STT</th>
+                    <th style="min-width:150px;">Tên trẻ</th>
+                    <th style="width:200px;">Có ăn </th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for student in students %}
+                {% set ate_status = student.daily_status.get(today).ate_today or false %}
+
+                <tr data-student-id="{{ student.id }}">
+                    <td>{{ loop.index }}</td>
+                    <td>{{ student.name }}</td>
+
+                    {# Checkbox duy nhất cho cả ngày (name="ate_today") #}
+                    <td class="meal-check-in text-center">
+                        <input type="checkbox" class="meal-checkbox" name="ate_today"
+                               {% if ate_status %}checked{% endif %}>
+                    </td>
+
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="save-button-wrapper">
+            <button id="save-meals">Lưu dữ liệu chấm công</button>
+        </div>
+    </div>
+    <div class="content-card full-width" style="margin-top: 1.5rem;">
+        <h3>📈 Tổng Kết Số Ngày Ăn Tháng Này</h3>
+        <p class="table-note">Tổng số ngày trẻ đã được chấm công là "Có ăn" trong tháng hiện tại.</p>
+
+        <div class="meal-table-wrapper">
+            <table class="data-table">
+                <thead>
+                <tr>
+                    <th style="width:40px;">STT</th>
+                    <th style="min-width:150px;">Tên trẻ</th>
+                    <th style="width:150px;">Tổng Ngày Đã Ăn</th>
+                    <th style="width:150px;">Chi Phí Ăn Uống</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for student in students %}
+                {# Giả định: total_meals_eaten được tính từ Flask #}
+                {% set days_eaten = student.total_meals_eaten | default(0) %}
+                {# Giả định: student.meal_cost đã được gán (ví dụ 25000) #}
+                {% set meal_cost = student.meal_cost | default(25000) %}
+                {% set total_cost = days_eaten * meal_cost %}
+
+                <tr data-student-id="{{ student.id }}">
+                    <td>{{ loop.index }}</td>
+                    <td class="text-bold">{{ student.name }}</td>
+
+                    {# Tổng Ngày Đã Ăn #}
+                    <td class="text-center text-success text-bold">
+                        {{ days_eaten }} ngày
+                    </td>
+
+                    {# Chi Phí Ăn Uống (Ví dụ: 25,000 VND/ngày) #}
+                    <td class="text-right text-warning text-bold">
+                        {{ "{:,.0f}".format(total_cost) }} đ
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+
+    </div>
+
+    <script>
+        // Hàm để lấy ngày được chọn từ input date
+        function getSelectedDate() {
+            return document.getElementById('record-date').value;
+        }
+
+        // Sự kiện lưu dữ liệu bữa ăn
+        const saveBtn = document.getElementById('save-meals');
+        saveBtn.addEventListener('click', () => {
+            const date = getSelectedDate();
+            const data = [];
+
+            document.querySelectorAll('tr[data-student-id]').forEach(tr => {
+                const studentId = tr.dataset.studentId;
+
+                // Lấy trạng thái của checkbox duy nhất (name="ate_today")
+                const ateTodayCheckbox = tr.querySelector('.meal-checkbox[name="ate_today"]');
+                const ate_today = ateTodayCheckbox ? ateTodayCheckbox.checked : false;
+
+                // Dữ liệu đơn giản hóa cho backend
+                data.push({
+                    studentId: studentId,
+                    date: date,
+                    // Gửi trạng thái chấm công duy nhất
+                    ate_today: ate_today
+                });
+            });
+
+            console.log('Dữ liệu chấm công gửi lên server:', data);
+
+            // Gửi dữ liệu lên server (cần điều chỉnh URL và phương thức thực tế)
+            // fetch('/update-meal-attendance', {
+            //     method: 'POST',
+            //     headers: {'Content-Type': 'application/json'},
+            //     body: JSON.stringify(data)
+            // });
+
+            alert(`Đã lưu dữ liệu chấm công bữa ăn cho ngày ${date}! Vui lòng kiểm tra console.`);
+        });
+
+        // Tải dữ liệu bữa ăn khi ngày thay đổi (Logic phía Frontend)
+        document.getElementById('record-date').addEventListener('change', (e) => {
+            const newDate = e.target.value;
+            console.log(`Đã chọn ngày mới: ${newDate}. Tải dữ liệu chấm công tương ứng...`);
+            // Thêm logic fetch dữ liệu chấm công cho newDate tại đây và cập nhật bảng
+            // Ví dụ: updateTableWithAttendance(newDate);
+        });
+
+    </script>
+
+    {% endblock %}

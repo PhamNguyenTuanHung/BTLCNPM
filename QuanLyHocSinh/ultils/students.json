@@ -1,0 +1,47 @@
+[
+  {
+    "id": "A001",
+    "name": "Nguyễn Minh An",
+    "gender": "Nam",
+    "age": "5 tuổi 8 tháng",
+    "parent": "Nguyễn Văn A",
+    "phone": "0912345678",
+    "class_id": "L5A"
+  },
+  {
+    "id": "B002",
+    "name": "Trần Thị Bích",
+    "gender": "Nữ",
+    "age": "5 tuổi 6 tháng",
+    "parent": "Trần Văn B",
+    "phone": "0987654321",
+    "class_id": "L5A"
+  },
+  {
+    "id": "C003",
+    "name": "Lê Hoàng Minh",
+    "gender": "Nam",
+    "age": "5 tuổi 4 tháng",
+    "parent": "Lê Thị C",
+    "phone": "0901234567",
+    "class_id": "L5A"
+  },
+  {
+    "id": "D004",
+    "name": "Phạm Thùy Dung",
+    "gender": "Nữ",
+    "age": "4 tuổi 9 tháng",
+    "parent": "Phạm Văn D",
+    "phone": "0911223344",
+    "class_id": "L4B"
+  },
+  {
+    "id": "E005",
+    "name": "Hoàng Văn Nam",
+    "gender": "Nam",
+    "age": "5 tuổi 2 tháng",
+    "parent": "Hoàng Thị E",
+    "phone": "0987123456",
+    "class_id": "L4B"
+  }
+]

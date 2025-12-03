@@ -1,0 +1,186 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Danh sách trẻ em - Hoa Mai{% endblock %}
+
+{% block content %}
+<div class="student-list-section">
+
+    <div class="control-panel">
+        <div class="control-header">
+            <div>
+                <h2>Danh sách trẻ em</h2>
+                <p class="student-count-text">Hiện có <span id="student-count" class="count-highlight">5/25</span> trẻ
+                    trong lớp</p>
+            </div>
+            <button id="add-student-btn" class="btn-add-student">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                     class="icon-plus">
+                    <path d="M5 12h14"></path>
+                    <path d="M12 5v14"></path>
+                </svg>
+                Thêm trẻ mới
+            </button>
+        </div>
+
+        <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 class="icon-search">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.3-4.3"></path>
+            </svg>
+            <input type="text" id="search-input" placeholder="Tìm kiếm theo tên trẻ hoặc phụ huynh..."
+                   class="search-input">
+        </div>
+    </div>
+
+    <div id="student-list" class="student-cards-grid">
+        {% for student in students %}
+        {# SỬ DỤNG current_record CHỨA BẢN GHI SỨC KHỎE MỚI NHẤT ĐÃ ĐƯỢC GÁN TRONG PYTHON #}
+        {% set record = student.current_record or {} %}
+        <div class="student-card" data-id="{{ student.id }}">
+            <div class="card-header">
+                <div class="info-group">
+                    <div class="avatar-wrapper {{ 'male' if student.gender == 'Nam' else 'female' }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round"
+                             class="icon-user {{'male' if student.gender == 'Nam' else 'female'}}">
+                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </div>
+
+                    <div>
+                        <p class="student-name">{{ student.name }}</p>
+                        <p class="student-age">{{ student.age }}</p>
+                    </div>
+                </div>
+
+                <span class="gender-tag {{ 'male' if student.gender == 'Nam' else 'female' }}">
+                {{ student.gender }}
+            </span>
+            </div>
+
+            <div class="parent-info">
+                <p><span>Phụ huynh:</span> {{ student.parent }}</p>
+                <p><span>Điện thoại:</span> {{ student.phone }}</p>
+            </div>
+
+            <div class="health-box">
+                <div class="health-header">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                         class="icon-health">
+                        <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path>
+                        <path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"></path>
+                    </svg>
+                    <span>Sức khỏe gần nhất</span>
+                </div>
+
+                <div class="health-details">
+                    <div>
+                        <p class="detail-label">Cân nặng</p>
+                        <p>{{ record.weight if record.weight else '--' }} kg</p>
+                    </div>
+                    <div>
+                        <p class="detail-label">Nhiệt độ</p>
+                        <div class="temperature-info">
+                            <p>{{ record.temp if record.temp else '--' }}°C</p>
+
+                            {% set temp_val = record.temp|float if record.temp and record.temp is not string else 0 %}
+                            {% set status = 'Cao' if temp_val >= 37.5 else 'Bình thường' %}
+
+                            {% if record.temp %}
+                            <span class="temp-tag {{ 'high' if status == 'Cao' else 'normal' }}">
+                                {{ status }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-actions">
+                <button class="btn-action btn-edit" data-id="{{student.id}}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                         class="icon-action">
+                        <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"></path>
+                    </svg>
+                    Sửa
+                </button>
+                <button class="btn-action btn-delete" data-id="{{student.id}}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                         class="icon-action">
+                        <path d="M3 6h18"></path>
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                        <line x1="10" x2="10" y1="11" y2="17"></line>
+                        <line x1="14" x2="14" y1="11" y2="17"></line>
+                    </svg>
+                    Xóa
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div id="student-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Thêm / Chỉnh sửa trẻ</h3>
+                <button class="btn-close-modal" id="close-modal-btn">&times;</button>
+            </div>
+            <form id="student-form">
+                <input type="hidden" id="student-id" name="id">
+
+                <div class="form-group">
+                    <label for="student-name">Tên trẻ:</label>
+                    <input type="text" id="student-name" name="name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="student-gender">Giới tính:</label>
+                    <select id="student-gender" name="gender" required>
+                        <option value="">-- Chọn giới tính --</option>
+                        <option value="Nam">Nam</option>
+                        <option value="Nữ">Nữ</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="student-parent">Phụ huynh:</label>
+                    <input type="text" id="student-parent" name="parent" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="student-phone">Điện thoại:</label>
+                    <input type="tel" id="student-phone" name="phone" required>
+                </div>
+
+                <h4>Thông tin sức khỏe:</h4>
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="student-weight">Cân nặng (kg):</label>
+                        <input type="number" step="0.1" id="student-weight" name="weight" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="student-temp">Nhiệt độ (°C):</label>
+                        <input type="number" step="0.1" id="student-temp" name="temp" required>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="submit" class="btn-save">Lưu thay đổi</button>
+                    <button type="button" class="btn-cancel" id="cancel-modal-btn">Hủy</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+</div>
+{% endblock %}
