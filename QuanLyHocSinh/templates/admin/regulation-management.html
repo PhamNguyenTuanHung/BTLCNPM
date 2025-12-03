@@ -1,0 +1,88 @@
+{% extends "admin/layout/base.html" %}
+
+{% block title %}Quản lý Quy định Trường học{% endblock %}
+
+{% block content %}
+<div class="page-content-wrapper">
+
+    <header>
+        <h2>Quản lý quy định</h2>
+        <p class="subtitle">Cấu hình các thông số học phí và quy định nhà trường</p>
+    </header>
+
+    <div class="stats-grid" style="margin-top: 20px;">
+        
+        <div class="stat-box bg-rose" style="background: linear-gradient(to right, #9478e0, #7b59cf);">
+            <div class="stat-icon-wrapper">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav"><line x1="12" x2="12" y1="2" y2="22"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+            </div>
+            <p class="stat-label">Học phí cơ bản</p>
+            <p class="stat-value">3.000.000 đ</p>
+            <p class="stat-label" style="font-size: 0.8rem; opacity: 1;">Mỗi tháng</p>
+        </div>
+
+        <div class="stat-box bg-rose" style="background: linear-gradient(to right, #F43F5E, #DB2777);">
+            <div class="stat-icon-wrapper">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"></path></svg>
+            </div>
+            <p class="stat-label">Tiền ăn</p>
+            <p class="stat-value">50.000 đ</p>
+            <p class="stat-label" style="font-size: 0.8rem; opacity: 1;">Mỗi ngày</p>
+        </div>
+
+        <div class="stat-box bg-green" style="background: linear-gradient(to right, #10B981, #059669);">
+            <div class="stat-icon-wrapper">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            </div>
+            <p class="stat-label">Sĩ số tối đa</p>
+            <p class="stat-value">25 trẻ</p>
+            <p class="stat-label" style="font-size: 0.8rem; opacity: 1;">Mỗi lớp</p>
+        </div>
+        
+        <div class="stat-box" style="visibility: hidden;"></div>
+    </div>
+
+    <div class="content-card" style="margin-top: 25px;">
+        <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--color-text-dark); margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav" style="color: #64748b;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            Cập nhật quy định
+        </h3>
+        
+        <form action="{{ url_for('main.save_regulations') }}" method="POST">
+            
+            <div class="form-group" style="margin-bottom: 25px;">
+                <label for="uc15_tuition" style="font-weight: 500; color: var(--color-text-dark);">UC15: Học phí cơ bản (VND/tháng)</label>
+                <input type="number" id="uc15_tuition" name="tuition_fee" value="3000000" class="search-input" style="width: 400px; padding-left: 1rem;">
+                <p style="font-size: 0.9rem; color: var(--color-text-medium); margin-top: 5px;">Hiện tại: 3.000.000 đ</p>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 25px;">
+                <label for="uc16_meal_cost" style="font-weight: 500; color: var(--color-text-dark);">UC16: Tiền ăn (VND/ngày)</label>
+                <input type="number" id="uc16_meal_cost" name="meal_cost" value="50000" class="search-input" style="width: 400px; padding-left: 1rem;">
+                <p style="font-size: 0.9rem; color: var(--color-text-medium); margin-top: 5px;">Hiện tại: 50.000 đ</p>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 25px;">
+                <label for="uc17_max_students" style="font-weight: 500; color: var(--color-text-dark);">UC17: Số lượng trẻ tối đa mỗi lớp</label>
+                <input type="number" id="uc17_max_students" name="max_students" value="25" class="search-input" style="width: 400px; padding-left: 1rem;">
+                <p style="font-size: 0.9rem; color: var(--color-text-medium); margin-top: 5px;">Hiện tại: 25 trẻ/lớp</p>
+            </div>
+
+            <button type="submit" class="btn-add-student" style="background: linear-gradient(to right, #9478e0, #7b59cf); width: 400px; justify-content: center; margin-top: 15px;">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-plus"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                Lưu cài đặt
+            </button>
+        </form>
+
+        <div class="content-card" style="margin-top: 40px; background-color: var(--color-rose-100); border: 1px solid var(--color-primary-start); padding: 15px;">
+            <p style="font-weight: 600; color: var(--color-text-dark); margin-bottom: 5px;">Lưu ý</p>
+            <ul style="list-style-type: disc; margin-left: 20px; color: var(--color-text-medium); font-size: 0.9rem;">
+                <li>Thay đổi học phí sẽ được áp dụng cho tháng tiếp theo</li>
+                <li>Thay đổi tiền ăn sẽ được áp dụng ngay lập tức</li>
+                <li>Thay đổi sĩ số tối đa sẽ ảnh hưởng đến việc thêm trẻ mới</li>
+                <li>Các thay đổi nên được thông báo cho phụ huynh trước khi áp dụng</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "admin/layout/base.html" %}
+
+{% block title %}Quản lý Lớp học{% endblock %}
+
+{% block content %}
+<div class="page-content-wrapper">
+
+    <header class="control-header">
+        <div>
+            <h2>Quản lý lớp học</h2>
+            <p class="subtitle">Tổng: {{ classes|length }} Lớp • {{ total_students }}/{{ total_capacity }} học sinh</p>
+        </div>
+
+        <button class="btn-add-student" id="btn-add-class">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-plus"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>
+            Thêm lớp mới
+        </button>
+    </header>
+
+    <div class="stats-grid" style="margin-top: 20px;">
+
+        <div class="stat-box" style="background: linear-gradient(to right, #9478e0, #7b59cf);">
+            <div class="stat-icon-wrapper">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav">
+                    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="10 12 14 12"></polyline><polyline points="12 7 12 17"></polyline><path d="M12 2L3 9h18z"></path>
+                 </svg>
+            </div>
+            <p class="stat-label">Tổng số lớp</p>
+            <p class="stat-value">{{ classes|length }}</p>
+        </div>
+
+        <div class="stat-box" style="background: linear-gradient(to right, #F43F5E, #DB2777);">
+            <div class="stat-icon-wrapper">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+            </div>
+            <p class="stat-label">Tổng học sinh</p>
+            <p class="stat-value">{{ total_students }}</p>
+        </div>
+
+        <div class="stat-box" style="background: linear-gradient(to right, #10B981, #059669);">
+            <div class="stat-icon-wrapper">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav">
+                    <path d="M3 3v18h18"></path><path d="M18.8 9.3l-1.4-1.4a2 2 0 0 0-2.8 0L9 14.9"></path><path d="M15 14l-6 6"></path>
+                </svg>
+            </div>
+            <p class="stat-label">Tỷ lệ lấp đầy</p>
+            <p class="stat-value">{{ ((total_students / total_capacity) * 100) | round(0) if total_capacity else 0 }}%</p>
+        </div>
+
+        <div class="stat-box" style="visibility: hidden;"></div>
+    </div>
+
+    <div class="student-cards-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 25px;">
+
+        {% for class in classes %}
+        {% set fill_rate = (class.current_students / class.max_capacity) * 100 %}
+        <div class="content-card class-card" data-class-id="{{ class.id }}">
+
+            <div class="card-header" style="justify-content: flex-start; gap: 15px;">
+                <div class="avatar-wrapper class-avatar" style="background-color: var(--color-class-avatar-bg); border-radius: 12px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-user">
+                        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="class-name" style="font-size: 1.25rem; margin-bottom: 5px;">{{ class.name }}</h3>
+                    <span class="role-tag class-level-tag" style="background-color: var(--color-rose-100); color: var(--color-primary-dark); font-size: 0.8rem;">{{ class.level }}</span>
+                </div>
+            </div>
+
+            <p class="teacher-info" style="margin-top: 15px; color: var(--color-text-medium); font-size: 0.95rem;">
+                Giáo viên chủ nhiệm:
+                <span class="text-bold" style="color: var(--color-text-dark);">{{ class.teacher_name }}</span>
+            </p>
+
+            <p class="students-count-label" style="margin-top: 10px; color: var(--color-text-dark); font-weight: 500;">Sĩ số</p>
+            <div class="progress-bar-container" style="height: 10px; margin-top: 5px;">
+                <div class="progress-bar-fill" style="width: {{ fill_rate }}%; background: linear-gradient(to right, #9478e0, #7b59cf);"></div>
+            </div>
+            <p class="students-count" style="text-align: right; font-size: 0.9rem; color: var(--color-text-medium);">{{ class.current_students }}/{{ class.max_capacity }}</p>
+
+            <div class="card-actions" style="margin-top: 20px;">
+                <button class="btn-action btn-edit" data-id="{{ class.id }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-action"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                    Sửa
+                </button>
+                <button class="btn-action btn-delete" data-id="{{ class.id }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-action"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    Xóa
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+
+    </div>
+
+</div>
+{% endblock %}

@@ -112,7 +112,8 @@ def create_app():
         }
     )
 
-    from QuanLyHocSinh.routes import main
+    from QuanLyHocSinh.routes import main,admin
     app.register_blueprint(main)
+    app.register_blueprint(admin)
 
     return app

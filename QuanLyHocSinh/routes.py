@@ -7,7 +7,7 @@ from QuanLyHocSinh.ultils import ultils
 # from mywebapp import utils, mail, oauth, socketio
 
 main = Blueprint('main', __name__, template_folder='templates')
-
+admin = Blueprint('admin', __name__, url_prefix='/admin', template_folder='templates/admin')
 
 @main.route('/')
 @main.route('/students')
@@ -290,6 +290,132 @@ def statistics():
         weight_chart_data=weight_chart_data
     )
 
+
+@admin.route('/class_management/<int:id>')
+def students_page(id):
+    # 1. Khởi tạo ngày tháng
+    today_str = date.today().isoformat()
+
+    # 2. Tải dữ liệu cơ bản
+    students = ultils.load_students()
+    all_health_records = ultils.load_health_records()
+    print(all_health_records)
+
+    current_records = {}
+
+    for record in all_health_records:
+        student_id = record['student_id']
+        record_date = record['date']
+
+        if student_id not in current_records or record_date > current_records[student_id]['date']:
+            current_records[student_id] = record
+
+    students_optimized = []
+    for student in students:
+        student_id = student['id']
+
+        # Gán bản ghi mới nhất (bao gồm cả các trường weight, temp, note)
+        # Nếu không tìm thấy, gán dictionary rỗng
+        student['current_record'] = current_records.get(student_id, {})
+
+        students_optimized.append(student)
+
+    # 5. Trả về template
+    return render_template(
+        "student.html",
+        students=students_optimized,  # students đã có trường 'current_record'
+        today=today_str
+    )
+@admin.route('/statistics')
+def statistics():
+    return render_template(
+        "statistics.html",
+    )
+
+@admin.route('/')
+@admin.route('/class_management')
+def class_management():
+    classes_data = [
+        {
+            'id': 1,
+            'name': 'Lớp Mẫu Giáo 1',
+            'level': 'Mẫu giáo',
+            'teacher_name': 'Nguyễn Thị Lan',
+            'current_students': 20,
+            'max_capacity': 25,
+            'bg_color': '#DBEAFE'  # Ví dụ về cách truyền màu
+        },
+        {
+            'id': 2,
+            'name': 'Lớp Mẫu Giáo 2',
+            'level': 'Mẫu giáo',
+            'teacher_name': 'Trần Thị Mai',
+            'current_students': 23,
+            'max_capacity': 25,
+            'bg_color': '#FCE7F3'
+        },
+        {
+            'id': 3,
+            'name': 'Lớp Nhà Trẻ 1',
+            'level': 'Nhà trẻ',
+            'teacher_name': 'Cô Lê Thị Hoa',
+            'current_students': 15,
+            'max_capacity': 20,
+            'bg_color': '#DBEAFE'
+        }
+    ]
+
+    total_students = sum(c['current_students'] for c in classes_data)
+    total_capacity = sum(c['max_capacity'] for c in classes_data)
+
+    return render_template(
+        "class-management.html",
+        classes=classes_data,
+        total_students=total_students,
+        total_capacity=total_capacity,
+    )
+
+@admin.route('/teacher_management')
+def teacher_management():
+    teachers = [
+        {
+            'id': 101,
+            'name': 'Cô Nguyễn Thị Lan',
+            'class_name': 'Lớp Mẫu Giáo 1',
+            'email': 'lan.nguyen@school.edu.vn',
+            'phone': '0912345678',
+            'start_date': '1/9/2023',
+            'salary': '8.000.000 đ'
+        },
+        {
+            'id': 102,
+            'name': 'Cô Trần Thị Mai',
+            'class_name': 'Lớp Mẫu Giáo 2',
+            'email': 'mai.tran@school.edu.vn',
+            'phone': '0907654321',
+            'start_date': '1/9/2023',
+            'salary': '8.000.000 đ'
+        },
+        {
+            'id': 103,
+            'name': 'Cô Lê Thị Hoa',
+            'class_name': 'Lớp Nhà Trẻ 1',
+            'email': 'hoa.le@school.edu.vn',
+            'phone': '0901234567',
+            'start_date': '15/1/2024',
+            'salary': '7.500.000 đ'
+        }
+    ]
+    return render_template(
+        "teacher-management.html",
+        teachers=teachers
+    )
+
+@admin.route('/regulation_management')
+def regulation_management():
+    return render_template(
+        "regulation-management.html",
+    )
 #
 # @main.before_request
 # def update_last_active():

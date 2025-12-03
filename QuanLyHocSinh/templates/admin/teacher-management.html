@@ -1,0 +1,292 @@
+{% extends "admin/layout/base.html" %}
+
+{% block title %}Quản lý Giáo viên{% endblock %}
+
+{% block content %}
+<div class="teacher-list-section">
+
+    <div class="control-panel">
+        <div class="control-header">
+            <div>
+                <h2>Quản lý giáo viên</h2>
+                <p class="subtitle">Tổng: <span id="teacher-count" class="count-highlight">{{ teachers|length }}</span>
+                    giáo viên</p>
+            </div>
+            <button id="add-teacher-btn" class="btn-add-student">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                     class="icon-plus">
+                    <path d="M5 12h14"></path>
+                    <path d="M12 5v14"></path>
+                </svg>
+                Thêm giáo viên
+            </button>
+        </div>
+
+        <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 class="icon-search">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.3-4.3"></path>
+            </svg>
+            <input type="text" id="search-input" placeholder="Tìm kiếm theo tên giáo viên hoặc lớp chủ nhiệm..."
+                   class="search-input">
+        </div>
+    </div>
+
+    <div id="teacher-list" class="student-cards-grid">
+        {% for teacher in teachers %}
+        <div class="student-card teacher-card" data-id="{{ teacher.id }}">
+            <div class="card-header">
+                <div class="info-group">
+                    <div class="avatar-wrapper teacher-avatar">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round"
+                             class="icon-user">
+                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </div>
+
+                    <div>
+                        <p class="student-name">{{ teacher.name }}</p>
+                        <p class="class-assigned">{{ teacher.class_name }}</p>
+                    </div>
+                </div>
+
+                <span class="role-tag teacher-tag">
+                    Giáo viên
+                </span>
+            </div>
+
+            <div class="contact-info parent-info">
+                <p class="info-email">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                    <span>Email:</span> {{ teacher.email }}
+                </p>
+                <p class="info-phone">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 16.92v3.05a2.5 2.5 0 0 1-2.26 2.44A19.7 19.7 0 0 1 3 4.25a2.5 2.5 0 0 1 2.44-2.26h3.05a2 2 0 0 1 2 1.74A12.4 12.4 0 0 0 12 10a12.4 12.4 0 0 0 5.25 1.74A2 2 0 0 1 19 13v3.92z"></path>
+                    </svg>
+                    <span>Điện thoại:</span> {{ teacher.phone }}
+                </p>
+            </div>
+
+            <div class="job-details-box health-box">
+                <div class="health-header">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                         class="icon-health">
+                        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"></path>
+                        <path d="M12 6v6l4 2"></path>
+                    </svg>
+                    <span>Thông tin công việc</span>
+                </div>
+
+                <div class="health-details">
+                    <div>
+                        <p class="detail-label">Ngày vào làm</p>
+                        <p class="text-bold">{{ teacher.start_date }}</p>
+                    </div>
+                    <div>
+                        <p class="detail-label">Lương cơ bản</p>
+                        <p class="text-bold">{{ teacher.salary }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-actions">
+                <button class="btn-action btn-edit" data-id="{{teacher.id}}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                         class="icon-action">
+                        <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"></path>
+                    </svg>
+                    Sửa
+                </button>
+                <button class="btn-action btn-delete" data-id="{{teacher.id}}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                         class="icon-action">
+                        <path d="M3 6h18"></path>
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                        <line x1="10" x2="10" y1="11" y2="17"></line>
+                        <line x1="14" x2="14" y1="11" y2="17"></line>
+                    </svg>
+                    Xóa
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div id="teacher-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title-teacher">Thêm / Chỉnh sửa Giáo viên</h3>
+                <button class="btn-close-modal" id="close-teacher-modal-btn">&times;</button>
+            </div>
+            <form id="teacher-form">
+                <input type="hidden" id="teacher-id" name="id">
+
+                <h4 style="color: var(--color-text-dark); font-weight: 600; margin-top: 0; margin-bottom: 1rem;">Thông
+                    tin cá nhân:</h4>
+
+                <div class="form-group">
+                    <label for="teacher-name">Tên giáo viên:</label>
+                    <input type="text" id="teacher-name" name="name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="teacher-class">Lớp chủ nhiệm:</label>
+                    <input type="text" id="teacher-class" name="class_name" placeholder="Ví dụ: Lớp Mẫu Giáo 1">
+                </div>
+
+                <h4 style="color: var(--color-text-dark); font-weight: 600; margin-top: 1.5rem; margin-bottom: 1rem;">
+                    Thông tin liên hệ:</h4>
+
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="teacher-email">Email:</label>
+                        <input type="email" id="teacher-email" name="email" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="teacher-phone">Điện thoại:</label>
+                        <input type="tel" id="teacher-phone" name="phone" required>
+                    </div>
+                </div>
+
+                <h4 style="color: var(--color-text-dark); font-weight: 600; margin-top: 1.5rem; margin-bottom: 1rem;">
+                    Thông tin công việc:</h4>
+
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="teacher-start-date">Ngày vào làm:</label>
+                        <input type="date" id="teacher-start-date" name="start_date" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="teacher-salary">Lương cơ bản (VND):</label>
+                        <input type="number" id="teacher-salary" name="salary" step="1000" required>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="submit" class="btn-save">Lưu thay đổi</button>
+                    <button type="button" class="btn-cancel" id="cancel-teacher-modal-btn">Hủy</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const teacherModal = document.getElementById('teacher-modal');
+            const openAddBtn = document.getElementById('add-teacher-btn');
+            const closeBtn = document.getElementById('close-teacher-modal-btn');
+            const cancelBtn = document.getElementById('cancel-teacher-modal-btn');
+            const teacherForm = document.getElementById('teacher-form');
+            const modalTitle = document.getElementById('modal-title-teacher');
+
+            // --- Mở Modal (Cho chức năng Thêm mới) ---
+            if (openAddBtn) {
+                openAddBtn.addEventListener('click', function () {
+                    teacherForm.reset(); // Xóa dữ liệu cũ
+                    document.getElementById('teacher-id').value = '';
+                    modalTitle.textContent = 'Thêm Giáo viên Mới';
+                    teacherModal.classList.add('active');
+                });
+            }
+
+            // --- Mở Modal (Cho chức năng Chỉnh sửa) ---
+            // Lắng nghe sự kiện click trên các nút "Sửa"
+            const editButtons = document.querySelectorAll('.btn-action.btn-edit');
+            editButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const teacherId = this.getAttribute('data-id');
+                    modalTitle.textContent = 'Chỉnh sửa Giáo viên';
+
+                    // 1. Điền ID vào form ẩn
+                    document.getElementById('teacher-id').value = teacherId;
+
+                    // 2. Tải và điền dữ liệu (Giả định tải dữ liệu bằng AJAX hoặc lấy từ thẻ)
+                    const card = this.closest('.teacher-card');
+                    fillTeacherForm(card, teacherId);
+
+                    teacherModal.classList.add('active');
+                });
+            });
+
+            // --- Đóng Modal ---
+            function closeModal() {
+                teacherModal.classList.remove('active');
+                teacherForm.reset();
+            }
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeModal);
+            }
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', closeModal);
+            }
+
+            // Đóng Modal khi click ra ngoài overlay (Không phải nội dung modal)
+            teacherModal.addEventListener('click', function (e) {
+                if (e.target === teacherModal) {
+                    closeModal();
+                }
+            });
+
+            // --- Hàm Giả định Điền Dữ liệu vào Form ---
+            function fillTeacherForm(card, id) {
+                // Lấy dữ liệu từ các thẻ (chỉ dùng cho mục đích minh họa frontend)
+                const name = card.querySelector('.student-name').textContent;
+                const className = card.querySelector('.class-assigned').textContent;
+
+                // Lấy thông tin liên hệ (Loại bỏ label "Email:", "Điện thoại:")
+                const emailText = card.querySelector('.info-email').textContent.replace('Email:', '').trim();
+                const phoneText = card.querySelector('.info-phone').textContent.replace('Điện thoại:', '').trim();
+
+                // Lấy thông tin công việc
+                const startDateText = card.querySelector('.job-details-box .text-bold').textContent;
+                // Lương (cần loại bỏ " đ" và dấu chấm)
+                const salaryText = card.querySelector('.job-details-box div:last-child .text-bold').textContent.replace(/[^0-9]/g, '');
+
+                // Điền dữ liệu
+                document.getElementById('teacher-name').value = name;
+                document.getElementById('teacher-class').value = className;
+                document.getElementById('teacher-email').value = emailText;
+                document.getElementById('teacher-phone').value = phoneText;
+                document.getElementById('teacher-salary').value = salaryText;
+
+                // Chuyển đổi Ngày vào làm (d/m/yyyy) sang định dạng của input date (yyyy-mm-dd)
+                const [d, m, y] = startDateText.split('/');
+                document.getElementById('teacher-start-date').value = y && m && d ? `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}` : '';
+            }
+
+            // --- Xử lý Submit Form (Ví dụ AJAX) ---
+            teacherForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                const formData = new FormData(teacherForm);
+                const data = Object.fromEntries(formData.entries());
+
+                console.log('Dữ liệu form đã gửi:', data);
+
+                // TODO: Gửi dữ liệu này đến Flask Endpoint bằng fetch/AJAX
+                // fetch('/admin/api/save_teacher', { method: 'POST', body: JSON.stringify(data), ... })
+
+                // Sau khi gửi thành công:
+                alert(`Đã lưu dữ liệu cho: ${data.name}`);
+                closeModal();
+            });
+        });
+    </script>
+</div>
+{% endblock %}
