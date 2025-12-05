@@ -9,6 +9,10 @@ from QuanLyHocSinh.ultils import ultils
 main = Blueprint('main', __name__, template_folder='templates')
 admin = Blueprint('admin', __name__, url_prefix='/admin', template_folder='templates/admin')
 
+@main.route('/login')
+def login():
+    return render_template('login.html')
+
 @main.route('/')
 @main.route('/students')
 def students_page():

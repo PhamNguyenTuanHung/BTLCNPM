@@ -1,0 +1,153 @@
+/* Background nhẹ để màu chính nổi bật */
+body {
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, #eef6fb, #e7f3fa);
+    font-family: "Inter", sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* Layout */
+.login-wrapper {
+    text-align: center;
+}
+
+/* Logo mạnh – hiện đại */
+.system-logo .logo-circle {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #0EA5E9, #0284C7);
+    border-radius: 20px;
+    margin: 0 auto 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.system-logo h2 {
+    margin: 0;
+    font-weight: 600;
+    color: #1f364d;
+}
+
+.subtitle {
+    margin-top: 4px;
+    color: #607381;
+}
+
+/* Card */
+.login-card {
+    margin-top: 30px;
+    background: white;
+    width: 380px;
+    border-radius: 18px;
+    padding: 35px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+}
+
+/* Avatar */
+.avatar {
+    width: 70px;
+    height: 70px;
+    background: linear-gradient(135deg, #0EA5E9, #0284C7);
+    border-radius: 15px;
+    margin: 0 auto 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Form */
+label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #344a5e;
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    margin-top: 6px;
+    margin-bottom: 15px;
+    border-radius: 10px;
+    border: 1px solid #cddbeb;
+    background: #f7fafd;
+    font-size: 15px;
+}
+
+/* Forgot */
+
+.forgot-wrapper {
+    text-align: right;
+    margin-bottom: 18px;
+}
+
+.forgot-link {
+    color: #5a78ff;
+    font-size: 14px;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.forgot-link:hover {
+    text-decoration: underline;
+}
+
+/* Role Picker */
+.role-picker {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 22px;
+}
+
+.role {
+    flex: 1;
+    margin: 0 3px;
+    padding: 4px 0; /* giảm chiều cao */
+    border-radius: 10px; /* bo nhỏ lại  */
+    border: 1px solid #d5e2f1;
+    background: #f6f9ff; /* màu nhẹ hơn */
+    color: #355167;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 14px; /* chữ nhỏ hơn chút */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px; /* thu gọn khoảng cách icon */
+    transition: 0.22s ease;
+}
+
+
+/* ROLE ACTIVE – nổi bật mạnh, sắc nét */
+.role.active {
+    background: #0EA5E9;
+    border-color: #0EA5E9;
+    color: white;
+    box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.20);
+}
+
+/* Button Login – nổi mạnh */
+.btn-login {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #0EA5E9, #0284C7);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+    box-shadow: 0 6px 14px rgba(14, 165, 233, 0.35);
+    transition: 0.22s ease;
+}
+
+.btn-login:hover {
+    transform: translateY(-2px);
+    background: linear-gradient(135deg, #0D9AD6, #0272AD);
+    box-shadow: 0 8px 18px rgba(14, 165, 233, 0.45);
+}
