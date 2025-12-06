@@ -1,27 +1,22 @@
-import redis
 from flask import Flask, request, jsonify, redirect, url_for, session, g
-from flask_socketio import SocketIO
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
+# from flask_socketio import SocketIO
+# from flask_sqlalchemy import SQLAlchemy
+# from flask_migrate import Migrate
 from flask_login import LoginManager
-# Import UserMixin ngay cả khi bạn import từ models
 from flask_login import UserMixin
 import cloudinary
-from flask_mail import Mail
+# from flask_mail import Mail
 import os
-from dotenv import load_dotenv
-from authlib.integrations.flask_client import OAuth
+# from dotenv import load_dotenv
+# from authlib.integrations.flask_client import OAuth
 
-# -------------------------------------------------------------
-# KHAI BÁO CÁC ĐỐI TƯỢNG VÀ IMPORT (Giữ nguyên)
-# -------------------------------------------------------------
-db = SQLAlchemy()
-migrate = Migrate()
-login = LoginManager()
-mail = Mail()
-load_dotenv()
-oauth = OAuth()
-socketio = SocketIO()
+# db = SQLAlchemy()
+# migrate = Migrate()
+# login = LoginManager()
+# mail = Mail()
+# load_dotenv()
+# oauth = OAuth()
+# socketio = SocketIO()
 
 user = os.getenv('MAIL_USERNAME')
 password = os.getenv('MAIL_PASSWORD')
@@ -37,11 +32,6 @@ secret_key = os.getenv("SECRET_KEY")
 client_id = os.getenv('CLIENT_ID')
 client_secret = os.getenv('CLIENT_SECRET')
 
-# -------------------------------------------------------------
-# IMPORT MODEL (Phải đặt ở đây để tránh lỗi circular import)
-# Vì models.py đang sử dụng đối tượng 'db' toàn cục.
-# -------------------------------------------------------------
-# Giả định models.py nằm ngang hàng với app.py
 from .models import User
 
 
@@ -67,13 +57,9 @@ def create_app():
         api_secret=os.getenv('CLOUDINARY_API_SECRET')
     )
 
-    app.redis = redis.Redis(host='localhost', port=6379, db=0)
 
     login.login_view = 'main.login'
 
-    # -------------------------------------------------------------
-    # KHỞI TẠO CÁC EXTENSION
-    # -------------------------------------------------------------
     db.init_app(app)
     migrate.init_app(app, db)
     login.init_app(app)
@@ -81,23 +67,14 @@ def create_app():
     oauth.init_app(app)
     socketio.init_app(app)
 
-    # =======================================================
-    # THÊM user_loader BẮT BUỘC
-    # =======================================================
+
     @login.user_loader
     def load_user(user_id):
-        """
-        Tải đối tượng User dựa trên user_id.
-        Khi người dùng CHƯA ĐĂNG NHẬP, hàm này vẫn được gọi với user_id=None
-        hoặc một giá trị không hợp lệ. Hàm này phải trả về User object hoặc None.
-        """
         try:
             user_id_int = int(user_id)
         except (ValueError, TypeError):
-            # Nếu user_id không hợp lệ (ví dụ: None hoặc string rỗng), trả về None
             return None
 
-        # Truy vấn database: Trả về đối tượng User hoặc None nếu không tìm thấy
         with app.app_context():
             return db.session.get(User, user_id_int)
             # =======================================================
