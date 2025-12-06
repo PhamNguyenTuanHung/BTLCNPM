@@ -1,4 +1,4 @@
-import redis
+
 from flask import Flask, request, jsonify, redirect, url_for, session, g
 from flask_socketio import SocketIO
 from flask_sqlalchemy import SQLAlchemy
