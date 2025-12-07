@@ -16,6 +16,7 @@ def login():
 @main.route('/')
 @main.route('/students')
 def students_page():
+    print(123)
     # 1. Khởi tạo ngày tháng
     today_str = date.today().isoformat()
 
@@ -46,7 +47,7 @@ def students_page():
     # 5. Trả về template
     return render_template(
         "student.html",
-        students=students_optimized,  # students đã có trường 'current_record'
+        students=students_optimized,
         today=today_str
     )
 

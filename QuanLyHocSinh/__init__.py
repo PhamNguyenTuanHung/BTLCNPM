@@ -1,22 +1,22 @@
 from flask import Flask, request, jsonify, redirect, url_for, session, g
-# from flask_socketio import SocketIO
-# from flask_sqlalchemy import SQLAlchemy
-# from flask_migrate import Migrate
+from flask_socketio import SocketIO
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_login import UserMixin
 import cloudinary
-# from flask_mail import Mail
+from flask_mail import Mail
 import os
-# from dotenv import load_dotenv
-# from authlib.integrations.flask_client import OAuth
+from dotenv import load_dotenv
+from authlib.integrations.flask_client import OAuth
 
-# db = SQLAlchemy()
-# migrate = Migrate()
-# login = LoginManager()
-# mail = Mail()
-# load_dotenv()
-# oauth = OAuth()
-# socketio = SocketIO()
+db = SQLAlchemy()
+migrate = Migrate()
+login = LoginManager()
+mail = Mail()
+load_dotenv()
+oauth = OAuth()
+socketio = SocketIO()
 
 user = os.getenv('MAIL_USERNAME')
 password = os.getenv('MAIL_PASSWORD')
