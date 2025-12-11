@@ -1,6 +1,6 @@
 # model.py
 from sqlalchemy import (
-    Column, Integer, String, Boolean, Float, DateTime, ForeignKey, Enum
+    Column, Integer, String, Boolean, Float, Numeric, DateTime, ForeignKey, Enum
 )
 from sqlalchemy.orm import relationship
 from flask_login import UserMixin
@@ -89,7 +89,7 @@ class Student(BaseModel):
     # nhưng tên cột trong DB vẫn là "relationship"
     guardianRelationship = Column("relationship", String(50), nullable=False)
 
-    class_id = Column(Integer, ForeignKey('classes.id'), nullable=False)
+    class_id = Column(Integer, ForeignKey('classes.id'), nullable=True)
 
     health_records = relationship('HealthRecord', backref='student', lazy=True)
     invoices = relationship('Invoice', backref='student', lazy=True)
@@ -135,21 +135,20 @@ class Invoice(BaseModel):
 class SystemConfig(BaseModel):
     __tablename__ = 'system_configs'
 
-    tuition = Column(Float, nullable=False)
-    maxNumber = Column(Integer, nullable=False)
-    mealFee = Column(Float, nullable=False)
-    effectiveDate = Column(DateTime, nullable=False)
+    key = Column(String(50), nullable=False, unique=True)
+    value = Column(Numeric(10, 2), nullable=False)
+    note = Column(String(255))
     createdAt = Column(DateTime, default=datetime.utcnow)
     updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __str__(self):
-        return f"SystemConfig(id={self.id})"
+        return f"SystemConfig(key={self.key}, value={self.value})"
 
 
 # ================== CREATE DATABASE ==================
 if __name__ == '__main__':
     with app.app_context():
-        # db.create_all()
+        db.create_all()
         import hashlib
         u = User(
             firstName='Tri',

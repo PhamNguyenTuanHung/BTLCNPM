@@ -49,6 +49,24 @@ def add_user(name, username, password, **kwargs):
     return user
 
 
+# ==================== SYSTEM CONFIG FUNCTIONS ====================
+def get_system_config(key, default=None):
+    """
+    Lấy giá trị cấu hình hệ thống theo key
+    
+    Args:
+        key: Tên key cấu hình (vd: 'tuition', 'maxNumber', 'mealFee')
+        default: Giá trị mặc định nếu không tìm thấy
+    
+    Returns:
+        Giá trị cấu hình hoặc giá trị mặc định
+    """
+    config = SystemConfig.query.filter_by(key=key, active=True).first()
+    if config:
+        return float(config.value)
+    return default
+
+
 # ==================== STUDENT FUNCTIONS ====================
 def load_students(class_id=None, kw=None, page=1):
     """
@@ -105,15 +123,65 @@ def add_student(student_data):
 
 def update_student(student_id, student_data):
     """
-    Cập nhật thông tin học sinh
+    Cập nhật thông tin học sinh và thông tin sức khỏe (nếu có)
     """
-    students = ultils.load_students()
-    for student in students:
-        if student['id'] == int(student_id):
-            student.update(student_data)
-            ultils.save_students(students)
-            return student
-    return None
+    try:
+        student = Student.query.get(student_id)
+        if not student:
+            return None
+        
+        # Cập nhật thông tin cơ bản của học sinh
+        if 'firstName' in student_data:
+            student.firstName = student_data['firstName']
+        if 'lastName' in student_data:
+            student.lastName = student_data['lastName']
+        if 'parentName' in student_data:
+            student.parentName = student_data['parentName']
+        if 'parentPhone' in student_data:
+            student.parentPhone = student_data['parentPhone']
+        if 'guardianRelationship' in student_data:
+            student.guardianRelationship = student_data['guardianRelationship']
+        if 'gender' in student_data:
+            student.gender = student_data['gender']
+        if 'birthday' in student_data:
+            from datetime import datetime
+            if isinstance(student_data['birthday'], str):
+                student.birthday = datetime.strptime(student_data['birthday'], '%Y-%m-%d')
+            else:
+                student.birthday = student_data['birthday']
+        
+        # Cập nhật thông tin sức khỏe (nếu có)
+        if 'weight' in student_data and 'bodyTemperature' in student_data:
+            from datetime import datetime
+            
+            # Tạo bản ghi sức khỏe mới
+            health_record = HealthRecord(
+                weight=float(student_data['weight']),
+                bodyTemperature=float(student_data['bodyTemperature']),
+                note=student_data.get('note', ''),
+                feverWarning=float(student_data['bodyTemperature']) >= 37.5,
+                student_id=student_id,
+                recordingDate=datetime.utcnow()
+            )
+            db.session.add(health_record)
+        
+        db.session.commit()
+        
+        # Return student data dưới dạng dict
+        return {
+            'id': student.id,
+            'firstName': student.firstName,
+            'lastName': student.lastName,
+            'name': f"{student.lastName} {student.firstName}",
+            'gender': student.gender,
+            'parentName': student.parentName,
+            'parentPhone': student.parentPhone,
+            'guardianRelationship': student.guardianRelationship
+        }
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating student: {e}")
+        return None
 
 
 def delete_student(student_id):
@@ -253,11 +321,36 @@ def get_dashboard_stats(today_str):
     """
     Lấy thống kê cho dashboard
     """
-    students = ultils.load_students()
-    all_health_records = ultils.load_health_records()
-    financial_records = ultils.load_financial_records()
-    
-    return ultils.get_dashboard_stats(
+    # Lấy dữ liệu từ database rồi chuyển sang list dict để tái sử dụng logic cũ
+    students_db = Student.query.filter(Student.active == True).all()
+    health_db = HealthRecord.query.filter(HealthRecord.active == True).all()
+    invoices_db = Invoice.query.filter(Invoice.active == True).all()
+
+    students = []
+    for s in students_db:
+        students.append({
+            'id': s.id,
+            'name': f"{s.lastName} {s.firstName}",
+            'gender': 'Nam' if s.gender else 'Nữ'
+        })
+
+    all_health_records = []
+    for r in health_db:
+        all_health_records.append({
+            'student_id': r.student_id,
+            'date': r.recordingDate.date().isoformat(),
+            'weight': r.weight,
+            'temp': r.bodyTemperature
+        })
+
+    financial_records = []
+    for inv in invoices_db:
+        financial_records.append({
+            'student_id': inv.student_id,
+            'paid_status': inv.paymentDate is not None
+        })
+
+    return get_dashboard_stats_from_lists(
         students,
         all_health_records,
         financial_records,
@@ -269,12 +362,167 @@ def get_chart_data():
     """
     Lấy dữ liệu cho các biểu đồ
     """
-    students = ultils.load_students()
-    financial_records = ultils.load_financial_records()
-    health_records = ultils.load_health_records()
-    
+    # Lấy dữ liệu từ database rồi chuyển sang dạng list dict
+    students_db = Student.query.filter(Student.active == True).all()
+    invoices_db = Invoice.query.filter(Invoice.active == True).all()
+    health_db = HealthRecord.query.filter(HealthRecord.active == True).all()
+
+    students = []
+    for s in students_db:
+        students.append({
+            'id': s.id,
+            'name': f"{s.lastName} {s.firstName}",
+            'gender': 'Nam' if s.gender else 'Nữ'
+        })
+
+    financial_records = []
+    for inv in invoices_db:
+        financial_records.append({
+            'student_id': inv.student_id,
+            'paid_status': inv.paymentDate is not None
+        })
+
+    health_records = []
+    for r in health_db:
+        health_records.append({
+            'student_id': r.student_id,
+            'date': r.recordingDate.date().isoformat(),
+            'weight': r.weight,
+            'temp': r.bodyTemperature
+        })
+
     return {
-        'gender_chart': ultils.get_gender_chart_data(students),
-        'revenue_chart': ultils.get_revenue_chart_data(financial_records),
-        'weight_chart': ultils.get_average_weight_chart_data(health_records)
+        'gender_chart': get_gender_chart_data(students),
+        'revenue_chart': get_revenue_chart_data(financial_records),
+        'weight_chart': get_average_weight_chart_data(health_records)
+    }
+
+
+# ==================== STATISTICS HELPER FUNCTIONS (moved from ultils) ====================
+
+def calculate_gender_stats(students):
+    """Tính tổng số trẻ, số trẻ Nam và số trẻ Nữ."""
+    total = len(students)
+    male_count = sum(1 for student in students if student.get('gender') == 'Nam')
+    female_count = total - male_count
+
+    return {
+        "total_children": total,
+        "male_count": male_count,
+        "female_count": female_count
+    }
+
+
+def calculate_health_risk_stats(all_health_records, students, date_to_check):
+    """Tính số lượng trẻ có nhiệt độ cao (>= 37.5°C) trong ngày được chọn."""
+    high_risk_count = 0
+
+    records_today = {
+        r['student_id']: r
+        for r in all_health_records
+        if r['date'] == date_to_check
+    }
+
+    for student in students:
+        record = records_today.get(student['id'])
+        if record and record.get('temp') is not None:
+            try:
+                temp = float(record['temp'])
+                if temp >= 37.5:
+                    high_risk_count += 1
+            except ValueError:
+                continue
+
+    return {"high_risk_children": high_risk_count}
+
+
+def calculate_finance_stats(financial_records):
+    """Tính tỷ lệ học phí đã thu trong tháng hiện tại."""
+    if not financial_records:
+        return {"paid_ratio": "0%"}
+
+    total_invoices = len(financial_records)
+    paid_count = sum(1 for record in financial_records if record.get('paid_status') is True)
+
+    paid_ratio_percent = (paid_count / total_invoices) * 100
+
+    return {"paid_ratio": f"{round(paid_ratio_percent)}%"}
+
+
+def get_dashboard_stats_from_lists(students, all_health_records, financial_records, date_to_check):
+    """Tổng hợp các chỉ số thống kê cho Dashboard từ list dict."""
+    gender_stats = calculate_gender_stats(students)
+    risk_stats = calculate_health_risk_stats(all_health_records, students, date_to_check)
+    finance_stats = calculate_finance_stats(financial_records)
+
+    dashboard_stats = {**gender_stats, **risk_stats, **finance_stats}
+    dashboard_stats['hoc_phi_co_ban'] = 3000000
+    dashboard_stats['tien_an_them_daily'] = 50000
+    dashboard_stats['tong_du_kien'] = 15000000
+
+    return dashboard_stats
+
+
+def get_gender_chart_data(students):
+    """Chuẩn bị dữ liệu cho biểu đồ tròn giới tính."""
+    male_count = sum(1 for s in students if s.get('gender') == 'Nam')
+    female_count = len(students) - male_count
+
+    return {
+        'labels': ['Trẻ Nam', 'Trẻ Nữ'],
+        'data': [male_count, female_count],
+        'colors': ['#5BC0EB', '#FF6B6B']
+    }
+
+
+def get_revenue_chart_data(financial_records):
+    """Chuẩn bị dữ liệu cho biểu đồ vòng cung tỷ lệ thanh toán."""
+    total_invoices = len(financial_records)
+    paid_count = sum(1 for r in financial_records if r.get('paid_status') is True)
+    unpaid_count = total_invoices - paid_count
+
+    return {
+        'labels': ['Đã thanh toán', 'Chưa thanh toán'],
+        'data': [paid_count, unpaid_count],
+        'colors': ['#10B981', '#F59E0B']
+    }
+
+
+def get_average_weight_chart_data(all_health_records):
+    """Tính toán cân nặng trung bình theo ngày (ví dụ 7 ngày gần nhất)."""
+    daily_weights = {}
+
+    for record in all_health_records:
+        record_date = record['date']
+        weight = record.get('weight')
+        if weight is not None:
+            try:
+                weight_val = float(weight)
+                if record_date not in daily_weights:
+                    daily_weights[record_date] = []
+                daily_weights[record_date].append(weight_val)
+            except ValueError:
+                pass
+
+    sorted_dates = sorted(daily_weights.keys(), reverse=True)[:7]
+    sorted_dates.sort()
+
+    labels = []
+    data = []
+    for d in sorted_dates:
+        try:
+            date_obj = datetime.strptime(d, '%Y-%m-%d')
+            labels.append(date_obj.strftime('%d/%m'))
+        except ValueError:
+            labels.append(d)
+
+        if daily_weights[d]:
+            data.append(round(sum(daily_weights[d]) / len(daily_weights[d]), 2))
+        else:
+            data.append(None)
+
+    return {
+        'labels': labels,
+        'data': data,
+        'title': "Cân nặng trung bình"
     }

@@ -63,14 +63,18 @@ document.addEventListener("DOMContentLoaded", () => {
             const card = document.querySelector(`.student-card[data-id="${id}"]`);
             if (!card) return console.warn("Không tìm thấy thẻ học sinh với ID:", id);
 
+            // Lấy weight và temp, xử lý trường hợp '--'
+            const weightText = card.querySelector(".health-details div:nth-child(1) p:nth-child(2)")?.textContent.replace(" kg", "").trim() || "";
+            const tempText = card.querySelector(".temperature-info p")?.textContent.replace("°C", "").trim() || "";
+
             const studentData = {
                 id: id,
                 name: card.querySelector(".student-name")?.textContent.trim() || "",
                 gender: card.querySelector(".gender-tag")?.textContent.trim() || "",
                 parent: card.querySelector(".parent-info p:nth-child(1)")?.textContent.replace("Phụ huynh: ", "").trim() || "",
                 phone: card.querySelector(".parent-info p:nth-child(2)")?.textContent.replace("Điện thoại: ", "").trim() || "",
-                weight: card.querySelector(".health-details div:nth-child(1) p:nth-child(2)")?.textContent.replace(" kg", "").trim() || "",
-                temp: card.querySelector(".temperature-info p")?.textContent.replace("°C", "").trim() || ""
+                weight: weightText === '--' ? '' : weightText,
+                temp: tempText === '--' ? '' : tempText
             };
             openModal("edit", studentData);
         });
@@ -94,7 +98,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // PUT request
             fetch("http://127.0.0.1:5000/students", {
                 method: "PUT",
-                headers: {"Content-Type": "application/json"},
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(studentData)
             })
                 .then(res => res.json())
@@ -138,7 +142,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // POST request - thêm mới
             fetch("/students", {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(studentData)
             })
                 .then(res => res.json())

@@ -1,4 +1,4 @@
-{% extends "admin/layout/base.html" %}
+{% extends "layout/base.html" %}
 
 {% block title %}Danh sách trẻ em{% endblock %}
 
@@ -14,8 +14,8 @@
             </div>
             <button id="add-student-btn" class="btn-add-student">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                     class="icon-plus">
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="icon-plus">
                     <path d="M5 12h14"></path>
                     <path d="M12 5v14"></path>
                 </svg>
@@ -25,13 +25,13 @@
 
         <div class="search-box">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                 class="icon-search">
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="icon-search">
                 <circle cx="11" cy="11" r="8"></circle>
                 <path d="m21 21-4.3-4.3"></path>
             </svg>
             <input type="text" id="search-input" placeholder="Tìm kiếm theo tên trẻ hoặc phụ huynh..."
-                   class="search-input">
+                class="search-input">
         </div>
     </div>
 
@@ -44,9 +44,8 @@
                 <div class="info-group">
                     <div class="avatar-wrapper {{ 'male' if student.gender == 'Nam' else 'female' }}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2"
-                             stroke-linecap="round" stroke-linejoin="round"
-                             class="icon-user {{'male' if student.gender == 'Nam' else 'female'}}">
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="icon-user {{'male' if student.gender == 'Nam' else 'female'}}">
                             <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
                             <circle cx="12" cy="7" r="4"></circle>
                         </svg>
@@ -59,8 +58,8 @@
                 </div>
 
                 <span class="gender-tag {{ 'male' if student.gender == 'Nam' else 'female' }}">
-                {{ student.gender }}
-            </span>
+                    {{ student.gender }}
+                </span>
             </div>
 
             <div class="parent-info">
@@ -71,9 +70,11 @@
             <div class="health-box">
                 <div class="health-header">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                         class="icon-health">
-                        <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path>
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="icon-health">
+                        <path
+                            d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z">
+                        </path>
                         <path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"></path>
                     </svg>
                     <span>Sức khỏe gần nhất</span>
@@ -104,17 +105,19 @@
             <div class="card-actions">
                 <button class="btn-action btn-edit" data-id="{{student.id}}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                         class="icon-action">
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="icon-action">
                         <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"></path>
+                        <path
+                            d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z">
+                        </path>
                     </svg>
                     Sửa
                 </button>
                 <button class="btn-action btn-delete" data-id="{{student.id}}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                         class="icon-action">
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="icon-action">
                         <path d="M3 6h18"></path>
                         <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
                         <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
@@ -165,11 +168,11 @@
                 <div class="form-row">
                     <div class="form-group half-width">
                         <label for="student-weight">Cân nặng (kg):</label>
-                        <input type="number" step="0.1" id="student-weight" name="weight" required>
+                        <input type="number" step="0.1" id="student-weight" name="weight">
                     </div>
                     <div class="form-group half-width">
                         <label for="student-temp">Nhiệt độ (°C):</label>
-                        <input type="number" step="0.1" id="student-temp" name="temp" required>
+                        <input type="number" step="0.1" id="student-temp" name="temp">
                     </div>
                 </div>
 

@@ -1,0 +1,32 @@
+/* Custom styles for Flask-Admin Student View */
+
+/* Hiển thị radio buttons giới tính theo hàng ngang */
+#gender ul,
+#gender .controls ul,
+.control-group #gender ul {
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+#gender li,
+#gender .controls li,
+.control-group #gender li,
+#gender ul li {
+    display: inline-block !important;
+    margin-right: 20px !important;
+}
+
+#gender label.radio,
+#gender .controls label,
+#gender li label {
+    display: inline !important;
+    font-weight: normal !important;
+    margin-left: 5px !important;
+}
+
+/* Đảm bảo input radio cũng inline */
+#gender input[type="radio"] {
+    margin: 0 5px 0 0 !important;
+    vertical-align: middle !important;
+}

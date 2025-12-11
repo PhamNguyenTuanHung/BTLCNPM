@@ -5,8 +5,9 @@ from datetime import datetime, date
 from flask import render_template, request, redirect, jsonify, session
 from flask_login import login_user, logout_user, current_user, login_required
 
-from QuanLyHocSinh import app, dao, login as login_manager
+from QuanLyHocSinh import app, dao, login as login_manager, db
 from QuanLyHocSinh.ultils import ultils
+from QuanLyHocSinh.model import Student, HealthRecord, Invoice, SystemConfig
 import math
 
 # Import admin để khởi tạo Flask-Admin
@@ -115,31 +116,67 @@ def students_page():
     # 1. Khởi tạo ngày tháng
     today_str = date.today().isoformat()
 
-    # 2. Tải dữ liệu cơ bản
-    students = ultils.load_students()
-    all_health_records = ultils.load_health_records()
+    # 2. Lấy danh sách học sinh từ database
+    students = Student.query.filter(Student.active == True).all()
 
-    # 3. Tìm bản ghi sức khỏe mới nhất cho mỗi học sinh
-    current_records = {}
-    for record in all_health_records:
-        student_id = record['student_id']
-        record_date = record['date']
+    # 3. Lấy bản ghi sức khỏe mới nhất cho mỗi học sinh
+    sub = (
+        db.session.query(
+            HealthRecord.student_id,
+            db.func.max(HealthRecord.recordingDate).label('max_date')
+        )
+        .group_by(HealthRecord.student_id)
+        .subquery()
+    )
 
-        if student_id not in current_records or record_date > current_records[student_id]['date']:
-            current_records[student_id] = record
+    latest_records = (
+        db.session.query(HealthRecord)
+        .join(
+            sub,
+            db.and_(
+                HealthRecord.student_id == sub.c.student_id,
+                HealthRecord.recordingDate == sub.c.max_date
+            )
+        )
+        .all()
+    )
 
-    # 4. Tối ưu hóa dữ liệu học sinh
+    latest_by_student = {r.student_id: r for r in latest_records}
+
+    def calc_age(birthday):
+        today = date.today()
+        return today.year - birthday.year - ((today.month, today.day) < (birthday.month, birthday.day))
+
+    # 4. Chuẩn hóa dữ liệu theo format cũ để template dùng lại
     students_optimized = []
-    for student in students:
-        student_id = student['id']
-        student['current_record'] = current_records.get(student_id, {})
-        students_optimized.append(student)
+    for s in students:
+        record = latest_by_student.get(s.id)
+        current_record = {}
+        if record:
+            current_record = {
+                'weight': record.weight,
+                'temp': record.bodyTemperature,
+                'note': record.note
+            }
 
-    # 5. Trả về template
+        students_optimized.append({
+            'id': s.id,
+            'name': f"{s.lastName} {s.firstName}",
+            'age': f"{calc_age(s.birthday)} tuổi",
+            'gender': 'Nam' if s.gender else 'Nữ',
+            'parent': s.parentName,
+            'phone': s.parentPhone,
+            'current_record': current_record
+        })
+
+    # 5. Lấy sĩ số tối đa từ cấu hình hệ thống (nếu có)
+    max_capacity = int(dao.get_system_config('maxNumber', default=len(students_optimized)))
+
     return render_template(
         "student.html",
         students=students_optimized,
-        today=today_str
+        today=today_str,
+        max_capacity=max_capacity
     )
 
 
@@ -188,29 +225,37 @@ def health_management():
 
     selected_date_str = selected_date.isoformat()
 
-    # 2. Tải dữ liệu
-    students = ultils.load_students()
-    all_health_records = ultils.load_health_records()
+    # 2. Lấy dữ liệu học sinh và hồ sơ sức khỏe từ database
+    students = Student.query.filter(Student.active == True).all()
 
-    # 3. Lọc bản ghi sức khỏe cho ngày được chọn
+    records_for_selected_date = (
+        db.session.query(HealthRecord)
+        .filter(db.func.date(HealthRecord.recordingDate) == selected_date_str)
+        .all()
+    )
+
+    records_by_student = {r.student_id: r for r in records_for_selected_date}
+
     students_optimized = []
     recorded_count = 0
 
-    records_for_selected_date = {
-        r['student_id']: r
-        for r in all_health_records
-        if r['date'] == selected_date_str
-    }
+    for s in students:
+        record = records_by_student.get(s.id)
+        current_record = {}
+        if record:
+            current_record = {
+                'weight': record.weight,
+                'temp': record.bodyTemperature,
+                'note': record.note
+            }
+            if record.weight is not None and record.bodyTemperature is not None:
+                recorded_count += 1
 
-    for student in students:
-        student_id = student['id']
-        current_record = records_for_selected_date.get(student_id, {})
-        student['current_record'] = current_record
-
-        if current_record and current_record.get('weight') and current_record.get('temp'):
-            recorded_count += 1
-
-        students_optimized.append(student)
+        students_optimized.append({
+            'id': s.id,
+            'name': f"{s.lastName} {s.firstName}",
+            'current_record': current_record
+        })
 
     # 4. Tính toán tiến độ
     total_students = len(students_optimized)
@@ -250,44 +295,41 @@ def meal_management():
     selected_date_str = selected_date.isoformat()
     current_month = selected_date.strftime('%Y-%m')
 
-    # 2. Tải dữ liệu
-    students = ultils.load_students()
-    all_meal_attendance = ultils.load_meal_records()
+    # 2. Lấy danh sách học sinh từ database
+    students = Student.query.filter(Student.active == True).all()
 
-    # 3. Tính tổng ngày ăn trong tháng
-    monthly_meal_count = {student['id']: 0 for student in students}
+    # 3. Lấy cấu hình hệ thống để biết đơn giá bữa ăn
+    meal_cost_per_day = dao.get_system_config('mealFee', default=50000)
 
-    for record in all_meal_attendance:
-        record_date = datetime.strptime(record['date'], '%Y-%m-%d').date()
-        record_month = record_date.strftime('%Y-%m')
-        student_id = record['student_id']
+    # 4. Tính tổng số ngày ăn trong tháng hiện tại dựa trên hóa đơn
+    invoices = Invoice.query.filter(Invoice.active == True).all()
 
-        if record_month == current_month and record.get('ate_today') is True:
-            if student_id in monthly_meal_count:
-                monthly_meal_count[student_id] += 1
+    monthly_meal_count = {s.id: 0 for s in students}
+    for inv in invoices:
+        if inv.createdAt and inv.createdAt.strftime('%Y-%m') == current_month:
+            days = inv.mealDays or 0
+            monthly_meal_count[inv.student_id] = monthly_meal_count.get(inv.student_id, 0) + days
 
-    # 4. Tối ưu hóa dữ liệu
+    # 5. Chuẩn hóa dữ liệu cho template
     students_optimized = []
-    attendance_for_selected_date = {
-        r['student_id']: r
-        for r in all_meal_attendance
-        if r['date'] == selected_date_str
-    }
+    for s in students:
+        student_id = s.id
 
-    for student in students:
-        student_id = student['id']
-
-        # Gán trạng thái chấm công cho ngày được chọn
-        attendance_record = attendance_for_selected_date.get(student_id, {})
-        student['daily_status'] = {
-            selected_date_str: {
-                'ate_today': attendance_record.get('ate_today', False)
+        # Hiện tại chưa có bảng chấm công bữa ăn theo ngày trong DB,
+        # nên mặc định trạng thái "đã ăn hôm nay" là False
+        daily_status = {
+            today_str: {
+                'ate_today': False
             }
         }
 
-        # Gán tổng số ngày ăn
-        student['total_meals_eaten'] = monthly_meal_count.get(student_id, 0)
-        students_optimized.append(student)
+        students_optimized.append({
+            'id': student_id,
+            'name': f"{s.lastName} {s.firstName}",
+            'daily_status': daily_status,
+            'total_meals_eaten': monthly_meal_count.get(student_id, 0),
+            'meal_cost': meal_cost_per_day
+        })
 
     return render_template(
         "meal-management.html",
@@ -305,44 +347,48 @@ def tuition():
     """
     today_str = date.today().isoformat()
 
-    students = ultils.load_students()
-    financial_records = ultils.load_financial_records()
+    # Lấy cấu hình hệ thống (học phí cơ bản, tiền ăn, sĩ số tối đa)
+    base_tuition = dao.get_system_config('tuition', default=3000000)
+    meal_cost_per_day = dao.get_system_config('mealFee', default=50000)
 
-    student_lookup = {s['id']: s for s in students}
+    # Lấy danh sách hóa đơn + join học sinh
+    invoices = (
+        db.session.query(Invoice)
+        .join(Student, Student.id == Invoice.student_id)
+        .filter(Invoice.active == True)
+        .all()
+    )
 
-    # Cấu hình chi phí
-    MEAL_COST_PER_DAY = 50000
-
-    # Tối ưu hóa dữ liệu
     tuition_optimized = []
+    for inv in invoices:
+        student = Student.query.get(inv.student_id)
+        if not student:
+            continue
 
-    for record in financial_records:
-        student_id = record['student_id']
-        student_info = student_lookup.get(student_id)
+        meals_eaten = inv.mealDays
+        base_fee = inv.tuition or base_tuition
+        meal_fee = inv.mealFee or meal_cost_per_day
+        total_meal_cost = meals_eaten * meal_fee
+        total_fee = inv.total or (base_fee + total_meal_cost)
 
-        if student_info:
-            # Ghép nối thông tin
-            record['name'] = student_info.get('name')
-            record['parent'] = student_info.get('parent')
-            record['meal_cost'] = MEAL_COST_PER_DAY
-
-            # Tính toán chi phí
-            meals_eaten = record.get('meals_eaten_days', 0)
-            base_fee = record.get('base_fee', 3000000)
-
-            total_meal_cost = meals_eaten * MEAL_COST_PER_DAY
-
-            record['total_meal_cost'] = total_meal_cost
-            record['calculated_total_fee'] = base_fee + total_meal_cost
-            record['paid'] = record.get('paid_status', False)
-
-            tuition_optimized.append(record)
+        tuition_optimized.append({
+            'student_id': student.id,
+            'name': f"{student.lastName} {student.firstName}",
+            'parent': student.parentName,
+            'meals_eaten_days': meals_eaten,
+            'meal_cost': meal_fee,
+            'base_fee': base_fee,
+            'total_meal_cost': total_meal_cost,
+            'calculated_total_fee': total_fee,
+            'paid_status': inv.paymentDate is not None
+        })
 
     return render_template(
         "tuition.html",
         tuition_records=tuition_optimized,
         today=today_str,
-        base_meal_cost=MEAL_COST_PER_DAY
+        base_meal_cost=meal_cost_per_day,
+        base_tuition=base_tuition
     )
 
 
@@ -354,30 +400,16 @@ def statistics():
     """
     today_str = date.today().isoformat()
 
-    # 1. Tải dữ liệu
-    students = ultils.load_students()
-    all_health_records = ultils.load_health_records()
-    financial_records = ultils.load_financial_records()
-
-    # 2. Tính toán thống kê
-    dashboard_stats = ultils.get_dashboard_stats(
-        students,
-        all_health_records,
-        financial_records,
-        today_str
-    )
-
-    # 3. Dữ liệu cho biểu đồ
-    gender_chart_data = ultils.get_gender_chart_data(students)
-    revenue_chart_data = ultils.get_revenue_chart_data(financial_records)
-    weight_chart_data = ultils.get_average_weight_chart_data(all_health_records)
+    # 1. Lấy thống kê dashboard và dữ liệu biểu đồ từ DAO
+    dashboard_stats = dao.get_dashboard_stats(today_str)
+    chart_data = dao.get_chart_data()
 
     return render_template(
         "statistics.html",
         stats=dashboard_stats,
-        gender_chart_data=gender_chart_data,
-        revenue_chart_data=revenue_chart_data,
-        weight_chart_data=weight_chart_data
+        gender_chart_data=chart_data['gender_chart'],
+        revenue_chart_data=chart_data['revenue_chart'],
+        weight_chart_data=chart_data['weight_chart']
     )
 
 
