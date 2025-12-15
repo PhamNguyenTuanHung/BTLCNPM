@@ -2,16 +2,18 @@
 # File này khởi tạo Flask app và định nghĩa các route chính
 
 from datetime import datetime, date
-from flask import render_template, request, redirect, jsonify, session
+from QuanLyHocSinh import admin  # <-- Thêm dòng này
+
+
+from flask import render_template, request, redirect, jsonify
 from flask_login import login_user, logout_user, current_user, login_required
 
 from QuanLyHocSinh import app, dao, login as login_manager, db
+from QuanLyHocSinh.model import Student, HealthRecord, Invoice
 from QuanLyHocSinh.ultils import ultils
-from QuanLyHocSinh.model import Student, HealthRecord, Invoice, SystemConfig
-import math
+
 
 # Import admin để khởi tạo Flask-Admin
-from QuanLyHocSinh import admin
 
 
 # ==================== USER LOADER ====================
@@ -39,25 +41,25 @@ def login_process():
     """
     username = request.form.get('username')
     password = request.form.get('password')
-    
+
     user = dao.auth_user(username=username, password=password)
     if user:
         login_user(user=user)
-        
+
         # Kiểm tra role và redirect tương ứng
         from QuanLyHocSinh.model import UserRole
-        
+
         # Nếu có tham số next, ưu tiên redirect theo next
         next_page = request.args.get('next')
         if next_page:
             return redirect(next_page)
-        
+
         # Redirect theo role
         if user.user_role == UserRole.ADMIN:
             return redirect('/admin')
         else:  # TEACHER hoặc role khác
             return redirect('/')
-    
+
     # Nếu đăng nhập thất bại, quay về trang login với thông báo lỗi
     return render_template('login.html', error='Tên đăng nhập hoặc mật khẩu không đúng!')
 
@@ -76,14 +78,14 @@ def register_process():
     Xử lý đăng ký người dùng mới
     """
     data = request.form
-    
+
     password = data.get('password')
     confirm = data.get('confirm')
-    
+
     if password != confirm:
         err_msg = 'Mật khẩu không khớp!'
         return render_template('register.html', err_msg=err_msg)
-    
+
     try:
         dao.add_user(
             name=data.get('name'),
@@ -110,15 +112,29 @@ def logout_process():
 @app.route('/students')
 @login_required
 def students_page():
-    """
-    Trang quản lý học sinh
-    """
-    # 1. Khởi tạo ngày tháng
+    teacher_id = current_user.id
+    teacher_class = dao.get_class_by_teacher_id(teacher_id=teacher_id)
+
+    class_id = None
+    current_student_count = 0
+
+    if teacher_class:
+        class_id = teacher_class.id
+        current_student_count = dao.get_current_student_count(class_id=class_id)
+
+    page = request.args.get("page", 1, type=int)
+    keyword = request.args.get("keyword", "").strip()
+
     today_str = date.today().isoformat()
 
-    # 2. Lấy danh sách học sinh từ database
-    students = Student.query.filter(Student.active == True).all()
+    pagination = dao.load_students(
+        class_id=class_id,
+        page=page,
+        page_size=9,
+        kw=keyword
+    )
 
+    students = pagination.get('students')
     # 3. Lấy bản ghi sức khỏe mới nhất cho mỗi học sinh
     sub = (
         db.session.query(
@@ -175,8 +191,10 @@ def students_page():
     return render_template(
         "student.html",
         students=students_optimized,
-        today=today_str,
-        max_capacity=max_capacity
+        pagination=pagination,
+        current_student_count=current_student_count,
+        max_capacity=max_capacity,
+        today=today_str
     )
 
 
@@ -197,9 +215,9 @@ def update_student():
     """
     updated = request.get_json()
     student_id = updated.get('id')
-    
+
     result = dao.update_student(student_id, updated)
-    
+
     if result:
         return jsonify({"success": True, "student": result})
     return jsonify({"success": False, "message": "Student not found"})
@@ -208,48 +226,48 @@ def update_student():
 # ==================== HEALTH MANAGEMENT ROUTES ====================
 @app.route('/health-management')
 def health_management():
-    """
-    Trang quản lý sức khỏe
-    """
-    # 1. Xử lý ngày tháng
-    today_date = date.today()
-    today_str = today_date.isoformat()
-    date_str_from_request = request.args.get('date')
+    today = date.today()
+    today_str = today.isoformat()
 
-    selected_date = today_date
-    if date_str_from_request:
+    date_str = request.args.get('date')
+    selected_date = today
+    if date_str:
         try:
-            selected_date = datetime.strptime(date_str_from_request, '%Y-%m-%d').date()
+            selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
             pass
 
     selected_date_str = selected_date.isoformat()
+    page = request.args.get('page', 1, type=int)
 
-    # 2. Lấy dữ liệu học sinh và hồ sơ sức khỏe từ database
-    students = Student.query.filter(Student.active == True).all()
+    teacher_id = current_user.id
 
-    records_for_selected_date = (
-        db.session.query(HealthRecord)
-        .filter(db.func.date(HealthRecord.recordingDate) == selected_date_str)
-        .all()
+    result = dao.load_students_with_health(
+        teacher_id=teacher_id,
+        date_filter=selected_date_str,
+        page=page,
+        page_size=10
     )
 
-    records_by_student = {r.student_id: r for r in records_for_selected_date}
+    students = result['students']
+    records_by_student = result['records_by_student']
+    pagination = result['pagination']
 
     students_optimized = []
-    recorded_count = 0
-
+    recorded_count = dao.count_recorded_students(
+        teacher_id=teacher_id,
+        date_filter=selected_date_str
+    )
     for s in students:
         record = records_by_student.get(s.id)
         current_record = {}
+
         if record:
             current_record = {
                 'weight': record.weight,
                 'temp': record.bodyTemperature,
                 'note': record.note
             }
-            if record.weight is not None and record.bodyTemperature is not None:
-                recorded_count += 1
 
         students_optimized.append({
             'id': s.id,
@@ -257,12 +275,11 @@ def health_management():
             'current_record': current_record
         })
 
-    # 4. Tính toán tiến độ
-    total_students = len(students_optimized)
+    total = pagination.total
     progress_stats = {
         'completed': recorded_count,
-        'total': total_students,
-        'percentage': (recorded_count / total_students) * 100 if total_students > 0 else 0
+        'total': total,
+        'percentage': (recorded_count / total * 100) if total else 0
     }
 
     return render_template(
@@ -270,7 +287,8 @@ def health_management():
         students=students_optimized,
         today=today_str,
         selected_date=selected_date_str,
-        progress_stats=progress_stats
+        progress_stats=progress_stats,
+        pagination=pagination
     )
 
 
@@ -339,6 +357,21 @@ def meal_management():
     )
 
 
+@app.route('/health-management', methods=["POST"])
+@login_required
+def update_heath():
+    data = request.get_json()
+    temp = data['temp']
+    weight = data['weight']
+    note = data['note']
+    student_id = data['id']
+    record_date = date.today()
+    dao.save_health_record(student_id,record_date,weight,temp,note)
+    return jsonify({
+        'success': True
+    })
+
+
 # ==================== TUITION MANAGEMENT ROUTES ====================
 @app.route('/tuition')
 def tuition():
@@ -351,45 +384,56 @@ def tuition():
     base_tuition = dao.get_system_config('tuition', default=3000000)
     meal_cost_per_day = dao.get_system_config('mealFee', default=50000)
 
-    # Lấy danh sách hóa đơn + join học sinh
-    invoices = (
-        db.session.query(Invoice)
-        .join(Student, Student.id == Invoice.student_id)
-        .filter(Invoice.active == True)
-        .all()
-    )
-
-    tuition_optimized = []
-    for inv in invoices:
-        student = Student.query.get(inv.student_id)
-        if not student:
-            continue
-
-        meals_eaten = inv.mealDays
-        base_fee = inv.tuition or base_tuition
-        meal_fee = inv.mealFee or meal_cost_per_day
-        total_meal_cost = meals_eaten * meal_fee
-        total_fee = inv.total or (base_fee + total_meal_cost)
-
-        tuition_optimized.append({
-            'student_id': student.id,
-            'name': f"{student.lastName} {student.firstName}",
-            'parent': student.parentName,
-            'meals_eaten_days': meals_eaten,
-            'meal_cost': meal_fee,
-            'base_fee': base_fee,
-            'total_meal_cost': total_meal_cost,
-            'calculated_total_fee': total_fee,
-            'paid_status': inv.paymentDate is not None
-        })
+    today =date.today()
+    month = today.month
+    year = today.year
+    invoices = dao.load_financial_records(month=month, year=year)
 
     return render_template(
         "tuition.html",
-        tuition_records=tuition_optimized,
+        invoices=invoices,
         today=today_str,
         base_meal_cost=meal_cost_per_day,
         base_tuition=base_tuition
     )
+
+from datetime import datetime, date
+
+@app.route('/api/invoices/pay', methods=['POST'])
+def pay_tuition_fee():
+    data = request.get_json()
+
+    if not data or 'invoice_id' not in data:
+        return jsonify({
+            'success': False,
+            'message': 'Thiếu invoice_id'
+        }), 400
+
+    invoice_id = data['invoice_id']
+
+    invoice = Invoice.query.get(invoice_id)
+    if not invoice:
+        return jsonify({
+            'success': False,
+            'message': 'Không tìm thấy hóa đơn'
+        }), 404
+
+    if invoice.paymentDate:
+        return jsonify({
+            'success': False,
+            'message': 'Hóa đơn đã được thanh toán'
+        }), 400
+
+    # ===== THANH TOÁN =====
+    invoice.paymentDate = datetime.now()
+    invoice.is_paid = True   # nếu có field này
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'invoice_id': invoice.id,
+        'paymentDate': invoice.paymentDate.isoformat()
+    }), 200
 
 
 # ==================== STATISTICS ROUTES ====================
@@ -414,7 +458,7 @@ def statistics():
 
 
 # ==================== ADMIN ROUTES ====================
-@app.route('/admin/class_management')
+@app.route('/admin/class')
 def admin_class_management():
     """
     Trang quản lý lớp học (Admin)
@@ -460,7 +504,7 @@ def admin_class_management():
     )
 
 
-@app.route('/admin/class_management/<int:class_id>')
+@app.route('/admin/class/<int:class_id>')
 def admin_class_students(class_id):
     """
     Trang quản lý học sinh của một lớp cụ thể (Admin)
@@ -493,7 +537,7 @@ def admin_class_students(class_id):
     )
 
 
-@app.route('/admin/teacher_management')
+@app.route('/admin/teacher')
 def admin_teacher_management():
     """
     Trang quản lý giáo viên (Admin)
@@ -551,5 +595,4 @@ def admin_statistics():
 
 # ==================== MAIN ENTRY POINT ====================
 if __name__ == '__main__':
-    from QuanLyHocSinh import admin
     app.run(debug=True)

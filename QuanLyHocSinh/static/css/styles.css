@@ -1455,6 +1455,56 @@ h2 {
     text-align: left;
 }
 
+/* ===== Pagination ===== */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 1.5rem 0;
+    flex-wrap: wrap;
+}
+
+.pagination a {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+
+    color: #374151;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+
+    transition: all 0.2s ease;
+}
+
+/* Hover */
+.pagination a:hover {
+    background: #2563eb;
+    color: #ffffff;
+    border-color: #2563eb;
+}
+
+/* Trang hiện tại */
+.pagination a.active {
+    background: #2563eb;
+    color: #ffffff;
+    border-color: #2563eb;
+    pointer-events: none;
+}
+
+/* Nút « » */
+.pagination a:first-child,
+.pagination a:last-child {
+    font-weight: 600;
+}
 
 
 

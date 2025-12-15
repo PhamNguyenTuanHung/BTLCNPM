@@ -1,11 +1,12 @@
 # dao.py - Data Access Object Layer
 # File này chịu trách nhiệm truy cập và xử lý dữ liệu
 
-from datetime import datetime, date
-from QuanLyHocSinh.ultils import ultils
-from QuanLyHocSinh import db
-from QuanLyHocSinh.model import User, Student, Class, HealthRecord, Invoice, SystemConfig
 import hashlib
+from datetime import datetime, date
+
+from QuanLyHocSinh import db
+from QuanLyHocSinh.model import User, Student, Class, HealthRecord, Invoice, SystemConfig, MealAttendance
+from QuanLyHocSinh.ultils import ultils
 
 
 # ==================== USER FUNCTIONS ====================
@@ -32,7 +33,7 @@ def add_user(name, username, password, **kwargs):
     Thêm user mới
     """
     password_hash = str(hashlib.md5(password.strip().encode('utf-8')).hexdigest())
-    
+
     user = User(
         firstName=name.split()[0] if name else '',
         lastName=' '.join(name.split()[1:]) if len(name.split()) > 1 else '',
@@ -42,10 +43,10 @@ def add_user(name, username, password, **kwargs):
         phone=kwargs.get('phone', ''),
         user_role=kwargs.get('user_role')
     )
-    
+
     db.session.add(user)
     db.session.commit()
-    
+
     return user
 
 
@@ -68,29 +69,39 @@ def get_system_config(key, default=None):
 
 
 # ==================== STUDENT FUNCTIONS ====================
-def load_students(class_id=None, kw=None, page=1):
+def load_students(class_id=None, kw=None, page=1, page_size=10):
     """
-    Tải danh sách học sinh từ JSON (hoặc database)
-    Hỗ trợ lọc theo class_id, từ khóa tìm kiếm, và phân trang
+    Load danh sách học sinh
+    - Lọc theo lớp
+    - Tìm kiếm theo tên
+    - Phân trang
     """
-    # Sử dụng JSON cho demo
-    students = ultils.load_students()
-    
-    # Lọc theo class nếu cần
+    query = Student.query.filter(Student.active == True)
+
     if class_id:
-        students = [s for s in students if s.get('class_id') == int(class_id)]
-    
-    # Tìm kiếm theo từ khóa
+        query = query.filter(Student.class_id == int(class_id))
+
     if kw:
-        kw = kw.lower()
-        students = [s for s in students if kw in s.get('name', '').lower()]
-    
-    # Phân trang (giả định PAGE_SIZE = 10)
-    PAGE_SIZE = 10
-    start = (page - 1) * PAGE_SIZE
-    end = start + PAGE_SIZE
-    
-    return students[start:end]
+        kw = kw.strip()
+        query = query.filter(
+            (Student.firstName.ilike(f"%{kw}%")) |
+            (Student.lastName.ilike(f"%{kw}%"))
+        )
+
+    pagination = query.order_by(Student.id.desc()).paginate(
+        page=page,
+        per_page=page_size,
+        error_out=False
+    )
+
+    return {
+        "students": pagination.items,
+        "total": pagination.total,
+        "pages": pagination.pages,
+        "current_page": pagination.page,
+        "has_next": pagination.has_next,
+        "has_prev": pagination.has_prev
+    }
 
 
 def count_students(class_id=None, kw=None):
@@ -98,14 +109,14 @@ def count_students(class_id=None, kw=None):
     Đếm số lượng học sinh
     """
     students = ultils.load_students()
-    
+
     if class_id:
         students = [s for s in students if s.get('class_id') == int(class_id)]
-    
+
     if kw:
         kw = kw.lower()
         students = [s for s in students if kw in s.get('name', '').lower()]
-    
+
     return len(students)
 
 
@@ -129,7 +140,7 @@ def update_student(student_id, student_data):
         student = Student.query.get(student_id)
         if not student:
             return None
-        
+
         # Cập nhật thông tin cơ bản của học sinh
         if 'firstName' in student_data:
             student.firstName = student_data['firstName']
@@ -149,11 +160,11 @@ def update_student(student_id, student_data):
                 student.birthday = datetime.strptime(student_data['birthday'], '%Y-%m-%d')
             else:
                 student.birthday = student_data['birthday']
-        
+
         # Cập nhật thông tin sức khỏe (nếu có)
         if 'weight' in student_data and 'bodyTemperature' in student_data:
             from datetime import datetime
-            
+
             # Tạo bản ghi sức khỏe mới
             health_record = HealthRecord(
                 weight=float(student_data['weight']),
@@ -164,9 +175,9 @@ def update_student(student_id, student_data):
                 recordingDate=datetime.utcnow()
             )
             db.session.add(health_record)
-        
+
         db.session.commit()
-        
+
         # Return student data dưới dạng dict
         return {
             'id': student.id,
@@ -195,60 +206,121 @@ def delete_student(student_id):
 
 
 # ==================== HEALTH RECORD FUNCTIONS ====================
-def load_health_records(student_id=None, date_filter=None):
+def load_students_with_health(
+        teacher_id,
+        date_filter=None,
+        page=1,
+        page_size=10
+):
     """
-    Tải hồ sơ sức khỏe
+    Lấy danh sách học sinh theo lớp giáo viên + hồ sơ sức khỏe theo ngày (phân trang)
     """
-    records = ultils.load_health_records()
-    
-    if student_id:
-        records = [r for r in records if r.get('student_id') == int(student_id)]
-    
-    if date_filter:
-        records = [r for r in records if r.get('date') == date_filter]
-    
-    return records
+
+    query = (
+        db.session.query(Student)
+        .join(Class, Student.class_id == Class.id)
+        .filter(
+            Class.teacher_id == teacher_id,
+            Student.active == True
+        )
+        .order_by(Student.id.asc())
+    )
+
+    pagination = query.paginate(
+        page=page,
+        per_page=page_size,
+        error_out=False
+    )
+
+    students = pagination.items
+
+    # lấy record theo ngày cho các student trong page
+    records = []
+    if date_filter and students:
+        student_ids = [s.id for s in students]
+        records = (
+            db.session.query(HealthRecord)
+            .filter(
+                HealthRecord.student_id.in_(student_ids),
+                HealthRecord.active == True,
+                db.func.date(HealthRecord.recordingDate) == date_filter
+            )
+            .all()
+        )
+
+    records_by_student = {r.student_id: r for r in records}
+
+    return {
+        'students': students,
+        'records_by_student': records_by_student,
+        'pagination': pagination,
+    }
 
 
-def save_health_record(record_data):
+def count_recorded_students(teacher_id, date_filter):
+    return (
+        db.session.query(HealthRecord.student_id)
+        .join(Student)
+        .join(Class)
+        .filter(
+            Class.teacher_id == teacher_id,
+            Student.active == True,
+            HealthRecord.active == True,
+            HealthRecord.weight.isnot(None),
+            HealthRecord.bodyTemperature.isnot(None),
+            db.func.date(HealthRecord.recordingDate) == date_filter
+        )
+        .distinct()
+        .count()
+    )
+
+
+def save_health_record(student_id, record_date, weight, temp, note):
     """
     Lưu hồ sơ sức khỏe mới hoặc cập nhật
+    record_data: dict với keys = student_id, date, weight, temp, note
     """
-    records = ultils.load_health_records()
-    
-    # Kiểm tra xem đã có bản ghi cho student này trong ngày này chưa
-    student_id = record_data.get('student_id')
-    record_date = record_data.get('date')
-    
-    updated = False
-    for record in records:
-        if record['student_id'] == student_id and record['date'] == record_date:
-            # Cập nhật bản ghi hiện có
-            record.update(record_data)
-            updated = True
-            break
-    
-    if not updated:
-        # Thêm bản ghi mới
-        records.append(record_data)
-    
-    ultils.save_health_records(records)
-    return record_data
+
+    # Tìm bản ghi tồn tại
+    record = HealthRecord.query.filter_by(
+        student_id=student_id,
+        recordingDate=record_date,
+        active=True
+    ).first()
+
+    if record:
+        # Cập nhật
+        record.weight = weight
+        record.bodyTemperature = temp
+        record.note = note
+    else:
+        # Tạo mới
+        record = HealthRecord(
+            student_id=student_id,
+            weight=weight,
+            bodyTemperature=temp,
+            note=note,
+            active=True
+        )
+        db.session.add(record)
+
+    db.session.commit()
+    return record
 
 
 # ==================== MEAL ATTENDANCE FUNCTIONS ====================
 def load_meal_records(date_filter=None, student_id=None):
     """
-    Tải bản ghi chấm công ăn
+    Tải bản ghi các bữa ăn
     """
     records = ultils.load_meal_records()
-    
+
     if date_filter:
         records = [r for r in records if r.get('date') == date_filter]
-    
+
     if student_id:
         records = [r for r in records if r.get('student_id') == int(student_id)]
-    
+
     return records
 
 
@@ -257,30 +329,91 @@ def save_meal_record(record_data):
     Lưu bản ghi chấm công ăn
     """
     records = ultils.load_meal_records()
-    
+
     student_id = record_data.get('student_id')
     record_date = record_data.get('date')
-    
+
     updated = False
     for record in records:
         if record['student_id'] == student_id and record['date'] == record_date:
             record.update(record_data)
             updated = True
             break
-    
+
     if not updated:
         records.append(record_data)
-    
+
     ultils.save_meal_records(records)
     return record_data
 
+from sqlalchemy import extract, func
+
+def count_meal_days(student_id, month, year):
+    return (
+        db.session.query(
+            func.count(func.distinct(func.date(MealAttendance.date)))
+        )
+        .filter(
+            MealAttendance.student_id == student_id,
+            MealAttendance.hasMeal == True,
+            extract('month', MealAttendance.date) == month,
+            extract('year', MealAttendance.date) == year
+        )
+        .scalar()
+    )
 
 # ==================== FINANCIAL FUNCTIONS ====================
-def load_financial_records():
+def load_financial_records(month=None, year=None):
     """
-    Tải hồ sơ tài chính
+    Tải danh sách hồ sơ tài chính (hóa đơn học phí)
     """
-    return ultils.load_financial_records()
+
+    # Lấy cấu hình hệ thống
+    base_tuition = get_system_config('tuition', default=3000000)
+    meal_cost_per_day = get_system_config('mealFee', default=50000)
+
+    query = (
+        db.session.query(Invoice, Student)
+        .join(Student, Student.id == Invoice.student_id)
+        .filter(Invoice.active == True)
+    )
+
+    # Nếu có lọc theo tháng / năm
+    if month:
+        query = query.filter(Invoice.month == month)
+    if year:
+        query = query.filter(Invoice.year == year)
+
+    invoices = query.all()
+
+    financial_records = []
+
+    for inv, student in invoices:
+        meal_days = count_meal_days(student.id, month, year)
+        tuition_fee = inv.tuition if inv.tuition is not None else base_tuition
+        meal_fee = inv.mealFee if inv.mealFee is not None else meal_cost_per_day
+
+        total_meal_cost = meal_days * meal_fee
+        calculated_total = tuition_fee + total_meal_cost
+
+        financial_records.append({
+            'invoice_id': inv.id,
+            'student_id': student.id,
+            'student_name': f"{student.lastName} {student.firstName}",
+            'parent_name': student.parentName,
+            'month': inv.month,
+            'year': inv.year,
+            'tuition_fee': tuition_fee,
+            'meal_days': meal_days,
+            'meal_fee_per_day': meal_fee,
+            'total_meal_cost': total_meal_cost,
+            'total_amount': inv.total if inv.total is not None else calculated_total,
+            'is_paid': inv.paymentDate is not None,
+            'payment_date': inv.paymentDate
+        })
+
+    return financial_records
+
 
 
 def update_payment_status(student_id, month, paid_status):
@@ -288,7 +421,7 @@ def update_payment_status(student_id, month, paid_status):
     Cập nhật trạng thái thanh toán
     """
     records = ultils.load_financial_records()
-    
+
     for record in records:
         if record.get('student_id') == int(student_id) and record.get('month') == month:
             record['paid_status'] = paid_status
@@ -296,8 +429,72 @@ def update_payment_status(student_id, month, paid_status):
                 record['payment_date'] = date.today().isoformat()
             ultils.save_data(records, ultils.FINANCE_FILE)
             return record
-    
+
     return None
+
+def is_invoice_paid(student_id, month, year):
+    invoice = Invoice.query.filter_by(
+        student_id=student_id,
+        month=month,
+        year=year,
+        active=True
+    ).first()
+
+    if not invoice:
+        return False
+
+    return invoice.paymentDate is not None
+
+def update_invoice_payment(student_id, month, year):
+    invoice = Invoice.query.filter_by(
+        student_id=student_id,
+        month=month,
+        year=year,
+        active=True
+    ).first()
+
+    if not invoice:
+        return False
+
+    if invoice.paymentDate:
+        return "Đã đóng rồi"
+
+    invoice.paymentDate = datetime.utcnow()
+    db.session.commit()
+    return True
+
+def generate_monthly_invoices(tuition, meal_fee):
+    now = datetime.now()
+    month = now.month
+    year = now.year
+
+    students = Student.query.filter_by(active=True).all()
+
+    for s in students:
+        exists = Invoice.query.filter_by(
+            student_id=s.id,
+            month=month,
+            year=year
+        ).first()
+
+        if exists:
+            continue  # đã có rồi thì bỏ qua
+
+        invoice = Invoice(
+            student_id=s.id,
+            teacher_id=s.class_.teacher_id if s.class_ else None,
+            month=month,
+            year=year,
+            tuition=tuition,
+            mealDays=0,
+            mealFee=meal_fee,
+            total=tuition,
+            paymentDate=None
+        )
+
+        db.session.add(invoice)
+
+    db.session.commit()
 
 
 # ==================== CLASS FUNCTIONS ====================
@@ -309,11 +506,25 @@ def load_classes():
     return Class.query.filter(Class.active == True).all()
 
 
+def get_class_by_teacher_id(teacher_id):
+    """
+    Lấy thông tin lớp theo id giáo viên
+    """
+    return Class.query.filter(Class.teacher_id == teacher_id).first()
+
+
 def get_class_by_id(class_id):
     """
     Lấy thông tin lớp theo ID
     """
     return Class.query.get(class_id)
+
+
+def get_current_student_count(class_id):
+    return Student.query.filter(
+        Student.class_id == class_id,
+        Student.active == True
+    ).count()
 
 
 # ==================== STATISTICS FUNCTIONS ====================

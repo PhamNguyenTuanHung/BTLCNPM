@@ -1,6 +1,6 @@
 # model.py
 from sqlalchemy import (
-    Column, Integer, String, Boolean, Float, Numeric, DateTime, ForeignKey, Enum
+    Column, Integer, String, Boolean, Float, Numeric, DateTime, ForeignKey, Enum, Date
 )
 from sqlalchemy.orm import relationship
 from flask_login import UserMixin
@@ -112,23 +112,68 @@ class HealthRecord(BaseModel):
     def __str__(self):
         return f"HealthRecord(student={self.student_id}, date={self.recordingDate})"
 
+# ===================== MEAL ATTENDANCE =====================
+class MealAttendance(BaseModel):
+    __tablename__ = 'meal_attendance'
+
+    date = Column(Date, nullable=False)
+
+    # Có ăn hay không
+    hasMeal = Column(Boolean, default=True)
+
+    # Quan hệ
+    student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
+    teacher_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    createdAt = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'student_id', 'date',
+            name='unique_student_meal_per_day'
+        ),
+    )
+
+    student = relationship('Student', backref='meal_records')
+
+    def __str__(self):
+        return f"Meal(student={self.student_id}, date={self.date}, hasMeal={self.hasMeal})"
+
 
 # ======================= INVOICE =======================
 class Invoice(BaseModel):
     __tablename__ = 'invoices'
 
-    mealDays = Column(Integer, nullable=False)
-    mealFee = Column(Float, nullable=False)
-    tuition = Column(Float, nullable=False)
-    total = Column(Float, nullable=False)
+    # Thời gian áp dụng
+    month = Column(Integer, nullable=False)   # 1–12
+    year = Column(Integer, nullable=False)
+
+    # Học phí & tiền ăn
+    tuition = Column(Float, nullable=True)
+    mealDays = Column(Integer, default=0)
+    mealFee = Column(Float, nullable=True)
+    total = Column(Float, nullable=True)
+
+    # Thanh toán
     paymentDate = Column(DateTime, nullable=True)
+
+    # Quan hệ
+    student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
+    teacher_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
     createdAt = Column(DateTime, default=datetime.utcnow)
 
-    student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
-    teacher_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint('student_id', 'month', 'year',
+                            name='unique_student_invoice_per_month'),
+    )
+
+    def is_paid(self):
+        return self.paymentDate is not None
 
     def __str__(self):
-        return f"Invoice(id={self.id}, student={self.student_id})"
+        return f"Invoice(student={self.student_id}, {self.month}/{self.year})"
+
 
 
 # ======================= SYSTEM CONFIG =======================

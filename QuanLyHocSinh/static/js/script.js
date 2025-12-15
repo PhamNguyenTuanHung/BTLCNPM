@@ -1,10 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
 
-    const searchInput = document.getElementById("search-input");
     const editButtons = document.querySelectorAll(".btn-edit");
     const deleteButtons = document.querySelectorAll(".btn-delete");
 
-    const addButton = document.getElementById("add-student-btn");
+    // const addButton = document.getElementById("add-student-btn");
 
     const studentModal = document.getElementById("student-modal");
     const studentForm = document.getElementById("student-form");
@@ -54,7 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
     cancelBtn.addEventListener("click", closeModal);
 
     // === ADD BUTTON ===
-    addButton.addEventListener("click", () => openModal("add"));
+    // addButton.addEventListener("click", () => openModal("add"));
 
     // === EDIT BUTTONS ===
     editButtons.forEach(btn => {
@@ -98,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // PUT request
             fetch("http://127.0.0.1:5000/students", {
                 method: "PUT",
-                headers: { "Content-Type": "application/json" },
+                headers: {"Content-Type": "application/json"},
                 body: JSON.stringify(studentData)
             })
                 .then(res => res.json())
@@ -142,7 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // POST request - thêm mới
             fetch("/students", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {"Content-Type": "application/json"},
                 body: JSON.stringify(studentData)
             })
                 .then(res => res.json())
@@ -171,23 +170,6 @@ document.addEventListener("DOMContentLoaded", () => {
         editModal.classList.remove("active");
     });
 
-    // === SEARCH STUDENT ===
-    function searchStudents() {
-        const keyword = searchInput.value.toLowerCase().trim();
-        const studentCards = document.querySelectorAll(".student-card");
-
-        studentCards.forEach(card => {
-            const name = card.querySelector(".student-name")?.textContent.toLowerCase() || "";
-            if (name.includes(keyword)) {
-                card.style.display = "";
-            } else {
-                card.style.display = "none";
-            }
-        });
-    }
-
-    searchInput.addEventListener("input", searchStudents);
-
     // === CLICK OUTSIDE TO CLOSE ===
     studentModal.addEventListener("click", (e) => {
         if (e.target === studentModal) {
@@ -209,11 +191,128 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    function updateDailyMeals() {
-
-    }
+    // JS
 
 });
 
+function updateHealth(btn) {
+    const card = btn.closest('.student-health-card');
+    const id = card.dataset.studentId;
+
+    const weightInput = card.querySelector('.input-weight');
+    const tempInput = card.querySelector('.input-temp');
+    const noteInput = card.querySelector('.input-note');
+
+    const weight = parseFloat(weightInput.value);
+    const temp = parseFloat(tempInput.value);
+    const note = noteInput.value.trim();
+
+    // Validate
+    if (isNaN(weight) || weight <= 0) {
+        alert("Cân nặng không hợp lệ!");
+        return;
+    }
+    if (isNaN(temp) || temp <= 30 || temp >= 45) {
+        alert("Nhiệt độ không hợp lệ!");
+        return;
+    }
+    if (note.length > 200) {
+        alert("Ghi chú quá dài (tối đa 200 ký tự)!");
+        return;
+    }
+
+    // POST dữ liệu
+    fetch("/health-management", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({id, weight, temp, note})
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert("Đã lưu thành công!");
+
+                // === CẬP NHẬT TRẠNG THÁI TRÊN GIAO DIỆN ===
+                const statusCol = card.querySelector('.status-col .status-indicator');
+                if (!statusCol) return;
+
+                if (temp >= 37.5) {
+                    statusCol.textContent = "Cao";
+                    statusCol.classList.add("status-high");
+                    statusCol.classList.remove("status-normal");
+                } else {
+                    statusCol.textContent = "Bình thường";
+                    statusCol.classList.add("status-normal");
+                    statusCol.classList.remove("status-high");
+                }
+
+                // Thêm class input nếu muốn highlight nhiệt độ cao
+                tempInput.classList.toggle("status-high-input", temp >= 37.5);
+            }
+        }).catch(err => console.error("Error:", err));
+}
+
+function payStudentTuition(btn) {
+    const card = btn.closest('.student-tuition-card');
+    if (!card) return;
+
+    const invoiceId = card.dataset.invoiceId;
+    if (!invoiceId) {
+        alert("Không tìm thấy hóa đơn!");
+        return;
+    }
+
+    if (!confirm("Xác nhận đóng học phí cho học sinh này?")) return;
+
+    // Khóa nút ngay khi click (chống spam)
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = "Đang xử lý...";
+
+    fetch("/api/invoices/pay", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({invoice_id: invoiceId})
+    })
+        .then(res => {
+            if (!res.ok) throw new Error("Network error");
+            return res.json();
+        })
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.message || "Thanh toán thất bại!");
+            }
+
+            // ===== UPDATE UI =====
+            const statusEl = card.querySelector(".tuition-status");
+            if (statusEl) {
+                statusEl.textContent = "Đã thanh toán";
+                statusEl.classList.remove("status-unpaid", "text-danger");
+                statusEl.classList.add("status-paid", "text-success");
+            }
+
+            btn.textContent = "Xuất HĐ";
+            btn.classList.add("btn-action-fee", "btn-export-invoice");
+
+            // (Tuỳ chọn) hiện toast thay vì alert
+            alert("✅ Đã đóng học phí!");
+        })
+        .catch(err => {
+            console.error(err);
+            alert(err.message || "Lỗi kết nối server!");
+            btn.disabled = false;
+            btn.textContent = originalText;
+        });
+}
+
+
+function searchStudents() {
+    const keyword = document.getElementById("search-input").value.trim();
+    const params = new URLSearchParams(window.location.search);
+    params.set("keyword", keyword);
+    params.set("page", 1);
+
+    window.location.href = `/students?${params.toString()}`;
+}
 
 
