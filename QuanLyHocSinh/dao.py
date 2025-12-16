@@ -469,7 +469,7 @@ def load_financial_records(month=None, year=None):
     """
 
     # Lấy cấu hình hệ thống
-    base_tuition = get_system_config('tuition', default=3000000)
+    base_tuition = get_system_config('tuition', default=500000)
     meal_cost_per_day = get_system_config('mealFee', default=50000)
 
     query = (
@@ -567,7 +567,6 @@ def pay_invoice(invoice_id):
 
     # ===== THANH TOÁN =====
     invoice.paymentDate = datetime.now()
-    invoice.is_paid = True  # nếu có field này
     db.session.commit()
 
     return {
@@ -607,6 +606,27 @@ def generate_monthly_invoices(tuition, meal_fee):
         db.session.add(invoice)
 
     db.session.commit()
+
+def get_invoice_data(invoice_id):
+    invoice = Invoice.query.get(invoice_id)
+
+    if not invoice:
+        return None
+
+    student = invoice.student  # dùng relationship
+
+    # normalize dữ liệu (tránh None trong template)
+    invoice.tuition = invoice.tuition or 0
+    invoice.mealFee = invoice.mealFee or 0
+    invoice.mealDays = invoice.mealDays or 0
+    invoice.total = invoice.total or (
+        invoice.tuition + invoice.mealFee
+    )
+
+    return {
+        "student": student,
+        "invoice": invoice
+    }
 
 
 # ==================== CLASS FUNCTIONS ====================
@@ -855,3 +875,5 @@ def get_average_weight_chart_data(all_health_records):
         'data': data,
         'title': "Cân nặng trung bình"
     }
+
+

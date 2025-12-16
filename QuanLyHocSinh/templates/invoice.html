@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Hóa đơn học phí</title>
+
+    <style>
+        body {
+            font-family: "Times New Roman", serif;
+            background: white;
+        }
+
+        .invoice-box {
+            width: 700px;
+            margin: auto;
+            padding: 25px;
+            border: 2px solid #000;
+        }
+
+        h2 {
+            text-align: center;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        table, th, td {
+            border: 1px solid #000;
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: right;
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: left;
+        }
+
+        .total {
+            font-weight: bold;
+        }
+
+        .footer {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+            text-align: center;
+        }
+
+        @media print {
+            button {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<button onclick="window.print()">🖨 In hóa đơn</button>
+
+<div class="invoice-box">
+    <h2>HÓA ĐƠN HỌC PHÍ</h2>
+
+    <div class="row">
+        <div>Học sinh: <b>{{ student.lastName }} {{ student.firstName }}</b></div>
+        <div>Lớp: <b>{{ student.class_.name }}</b></div>
+    </div>
+
+    <div class="row">
+        <div>Ngày lập: {{ invoice.createdAt.strftime('%d/%m/%Y') }}</div>
+    </div>
+
+    <table>
+        <tr>
+            <th>Khoản thu</th>
+            <th>Số tiền (VND)</th>
+        </tr>
+        <tr>
+            <td>Học phí</td>
+            <td>{{ "{:,.0f}".format(invoice.tuition or 0) }}</td>
+        </tr>
+        <tr>
+            <td>Tiền ăn ({{ invoice.mealDays or 0 }} ngày)</td>
+            <td>{{ "{:,.0f}".format(invoice.mealFee*invoice.mealDays or 0) }}</td>
+        </tr>
+        <tr class="total">
+            <td>TỔNG CỘNG</td>
+            <td>{{ "{:,.0f}".format(invoice.calculated_total) }}</td>
+        </tr>
+    </table>
+
+
+    <div class="footer">
+        <div>
+            <p>Người thu tiền</p>
+            <br><br>
+            <b>{{ invoice.teacher.lastName }} {{ invoice.teacher.firstName }}</b>
+        </div>
+
+        <div>
+            <p>Phụ huynh</p>
+            <br><br>
+            <b>{{ student.parentName }}</b>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

@@ -51,7 +51,7 @@
                 {% for record in invoices %}
                 {# Sử dụng biến đã được tính toán trong hàm Flask /tuition #}
                 {% set total_meal_cost = record.total_meal_cost | default(0) %}
-                {% set base_fee = record.base_fee | default(3000000) %}
+                {% set base_fee = record.tuition_fee | default(3000000) %}
                 {% set total_fee = record.calculated_total_fee | default(base_fee + total_meal_cost) %}
                 {% set meals_eaten = record.meal_days | default(0) %}
                 {% set paid_status = record.paid_status | default(false) %}

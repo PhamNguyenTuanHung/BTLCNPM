@@ -3,7 +3,7 @@
 from sqlalchemy import false
 
 from QuanLyHocSinh import admin
-from flask import render_template, request, redirect, jsonify
+from flask import render_template, request, redirect, jsonify, abort
 from flask_login import login_user, logout_user, current_user, login_required
 
 from QuanLyHocSinh import app, dao, login as login_manager, db
@@ -367,6 +367,19 @@ def tuition():
         base_tuition=base_tuition
     )
 
+# ==================== INVOICE ROUTES ====================
+@app.route('/invoice/<int:invoice_id>')
+def invoice(invoice_id):
+    data = dao.get_invoice_data(invoice_id)
+    print(data.get('invoice'))
+    if not data:
+        abort(404)
+
+    return render_template(
+        'invoice.html',
+        student=data['student'],
+        invoice=data['invoice']
+    )
 
 from datetime import datetime, date
 

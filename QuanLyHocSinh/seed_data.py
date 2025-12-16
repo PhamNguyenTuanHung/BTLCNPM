@@ -23,7 +23,7 @@ with app.app_context():
     # ================== SYSTEM CONFIG ==================
     if SystemConfig.query.count() == 0:
         configs = [
-            SystemConfig(key='tuition', value=5000000, note='Học phí (VND)'),
+            SystemConfig(key='tuition', value=500000, note='Học phí (VND)'),
             SystemConfig(key='mealFee', value=50000, note='Tiền ăn/ngày (VND)'),
             SystemConfig(key='maxNumber', value=25, note='Sĩ số tối đa')
         ]

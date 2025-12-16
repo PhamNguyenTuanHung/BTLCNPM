@@ -131,20 +131,17 @@ class MealAttendance(BaseModel):
 class Invoice(BaseModel):
     __tablename__ = 'invoices'
 
-    # Thời gian áp dụng
-    month = Column(Integer, nullable=False)   # 1–12
+    month = Column(Integer, nullable=False)
     year = Column(Integer, nullable=False)
 
-    # Học phí & tiền ăn
     tuition = Column(Float, nullable=True)
     mealDays = Column(Integer, default=0)
     mealFee = Column(Float, nullable=True)
+
     total = Column(Float, nullable=True)
 
-    # Thanh toán
     paymentDate = Column(DateTime, nullable=True)
 
-    # Quan hệ
     student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
     teacher_id = Column(Integer, ForeignKey('users.id'), nullable=True)
 
@@ -155,6 +152,12 @@ class Invoice(BaseModel):
                             name='unique_student_invoice_per_month'),
     )
 
+    # ✅ PROPERTY CHUẨN
+    @property
+    def calculated_total(self):
+        return (self.tuition or 0) + (self.mealFee*self.mealDays or 0)
+
+    @property
     def is_paid(self):
         return self.paymentDate is not None
 
