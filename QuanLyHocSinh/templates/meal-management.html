@@ -19,7 +19,8 @@
 
         <div class="date-picker" style="margin-top: 1rem;">
             <label for="record-date">Chọn ngày:</label>
-            <input type="date" id="record-date" value="{{ today }}">
+            <input type="date" id="record-date"
+                   value="{{ selected_date }}">
         </div>
     </div>
 
@@ -28,20 +29,22 @@
         <p class="table-note">Tick ✔ nếu trẻ đã ăn (áp dụng cho toàn bộ bữa ăn trong ngày).</p>
 
         <div class="meal-table-wrapper">
+            <input type="text" id="search-input" placeholder="Tìm kiếm theo tên trẻ"
+                   class="search-input">
             <table class="meal-table">
                 <thead>
                 <tr>
                     <th style="width:40px;">STT</th>
                     <th style="min-width:150px;">Tên trẻ</th>
-                    <th style="width:200px;">Có ăn </th>
+                    <th style="width:200px;">Có ăn</th>
                 </tr>
                 </thead>
                 <tbody>
                 {% for student in students %}
-                {% set ate_status = student.daily_status.get(today).ate_today or false %}
+                {% set ate_status = student.daily_status.get(selected_date, {}).ate_today or false %}
 
                 <tr data-student-id="{{ student.id }}">
-                    <td>{{ loop.index }}</td>
+                    <td>{{ student.id }}</td>
                     <td>{{ student.name }}</td>
 
                     {# Checkbox duy nhất cho cả ngày (name="ate_today") #}
@@ -57,7 +60,7 @@
         </div>
 
         <div class="save-button-wrapper">
-            <button id="save-meals">Lưu dữ liệu chấm công</button>
+            <button id="save-meals">Lưu dữ liệu bữa ăn</button>
         </div>
     </div>
     <div class="content-card full-width" style="margin-top: 1.5rem;">
@@ -103,55 +106,84 @@
 
 
     </div>
+</div>
 
-    <script>
-        // Hàm để lấy ngày được chọn từ input date
-        function getSelectedDate() {
-            return document.getElementById('record-date').value;
-        }
+<script>
+    const searchInput = document.getElementById('search-input');
 
-        // Sự kiện lưu dữ liệu bữa ăn
-        const saveBtn = document.getElementById('save-meals');
-        saveBtn.addEventListener('click', () => {
-            const date = getSelectedDate();
-            const data = [];
+    searchInput.addEventListener('input', () => {
+        const keyword = searchInput.value.toLowerCase().trim();
 
-            document.querySelectorAll('tr[data-student-id]').forEach(tr => {
-                const studentId = tr.dataset.studentId;
+        document.querySelectorAll('.meal-table tbody tr').forEach(tr => {
+            const name = tr.querySelector('td:nth-child(2)').textContent.toLowerCase();
 
-                // Lấy trạng thái của checkbox duy nhất (name="ate_today")
-                const ateTodayCheckbox = tr.querySelector('.meal-checkbox[name="ate_today"]');
-                const ate_today = ateTodayCheckbox ? ateTodayCheckbox.checked : false;
 
-                // Dữ liệu đơn giản hóa cho backend
-                data.push({
-                    studentId: studentId,
-                    date: date,
-                    // Gửi trạng thái chấm công duy nhất
-                    ate_today: ate_today
-                });
+            if (name.includes(keyword)) { // || parentName.includes(keyword)
+                tr.style.display = '';
+            } else {
+                tr.style.display = 'none';
+            }
+        });
+    });
+
+    // Hàm để lấy ngày được chọn từ input date
+    function getSelectedDate() {
+        return document.getElementById('record-date').value;
+    }
+
+    // Sự kiện lưu dữ liệu bữa ăn
+    const saveBtn = document.getElementById('save-meals');
+    saveBtn.addEventListener('click', () => {
+        const date = getSelectedDate();
+        const data = [];
+
+      document.querySelectorAll('.meal-table tbody tr').forEach(tr => {
+            const studentId = tr.dataset.studentId;
+
+            // Lấy trạng thái của checkbox duy nhất (name="ate_today")
+            const ateTodayCheckbox = tr.querySelector('.meal-checkbox[name="ate_today"]');
+            const ate_today = ateTodayCheckbox ? ateTodayCheckbox.checked : false;
+
+            // Dữ liệu đơn giản hóa cho backend
+            data.push({
+                student_id: studentId,
+                date: date,
+                ate_today: ate_today
             });
-
-            console.log('Dữ liệu chấm công gửi lên server:', data);
-
-            // Gửi dữ liệu lên server (cần điều chỉnh URL và phương thức thực tế)
-            // fetch('/update-meal-attendance', {
-            //     method: 'POST',
-            //     headers: {'Content-Type': 'application/json'},
-            //     body: JSON.stringify(data)
-            // });
-
-            alert(`Đã lưu dữ liệu chấm công bữa ăn cho ngày ${date}! Vui lòng kiểm tra console.`);
         });
 
-        // Tải dữ liệu bữa ăn khi ngày thay đổi (Logic phía Frontend)
-        document.getElementById('record-date').addEventListener('change', (e) => {
-            const newDate = e.target.value;
-            console.log(`Đã chọn ngày mới: ${newDate}. Tải dữ liệu chấm công tương ứng...`);
-            // Thêm logic fetch dữ liệu chấm công cho newDate tại đây và cập nhật bảng
-            // Ví dụ: updateTableWithAttendance(newDate);
-        });
+        console.log('Dữ liệu chấm công gửi lên server:', data);
 
-    </script>
+        // Gửi dữ liệu lên server
+        fetch('/meal-attendance', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                } else {
+                    alert('Có lỗi khi lưu dữ liệu: ' + (data.message || ''));
+                }
+            })
+            .catch(err => {
+                console.error('Lỗi khi gửi dữ liệu:', err);
+                alert('Có lỗi xảy ra khi gửi dữ liệu lên server!');
+            });
+    });
 
-    {% endblock %}
+    // Tải dữ liệu bữa ăn khi ngày thay đổi (Logic phía Frontend)
+    document.getElementById('record-date').addEventListener('change', (e) => {
+        const newDate = e.target.value;
+        console.log(`Đã chọn ngày mới: ${newDate}. Tải dữ liệu chấm công tương ứng...`);
+        const params = new URLSearchParams(window.location.search);
+
+        params.set("date", newDate);
+        params.set("page", 1);
+        window.location.href = `/meal-management?${params.toString()}`;
+    });
+
+</script>
+{% endblock %}

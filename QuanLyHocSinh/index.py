@@ -1,16 +1,15 @@
 # index.py - Main Application Routes
 # File này khởi tạo Flask app và định nghĩa các route chính
+from sqlalchemy import false
 
-from datetime import datetime, date
-from QuanLyHocSinh import admin  # <-- Thêm dòng này
-
-
+from QuanLyHocSinh import admin
 from flask import render_template, request, redirect, jsonify
 from flask_login import login_user, logout_user, current_user, login_required
 
 from QuanLyHocSinh import app, dao, login as login_manager, db
 from QuanLyHocSinh.model import Student, HealthRecord, Invoice
 from QuanLyHocSinh.ultils import ultils
+from QuanLyHocSinh import dao
 
 
 # Import admin để khởi tạo Flask-Admin
@@ -134,30 +133,16 @@ def students_page():
         kw=keyword
     )
 
+    today = date.today()
+
     students = pagination.get('students')
     # 3. Lấy bản ghi sức khỏe mới nhất cho mỗi học sinh
-    sub = (
-        db.session.query(
-            HealthRecord.student_id,
-            db.func.max(HealthRecord.recordingDate).label('max_date')
-        )
-        .group_by(HealthRecord.student_id)
-        .subquery()
-    )
+    today_records = db.session.query(HealthRecord).filter(
+        db.func.date(HealthRecord.recordingDate)  == today
+    ).all()
 
-    latest_records = (
-        db.session.query(HealthRecord)
-        .join(
-            sub,
-            db.and_(
-                HealthRecord.student_id == sub.c.student_id,
-                HealthRecord.recordingDate == sub.c.max_date
-            )
-        )
-        .all()
-    )
-
-    latest_by_student = {r.student_id: r for r in latest_records}
+    # Nếu muốn mapping theo student_id
+    today_by_student = {r.student_id: r for r in today_records}
 
     def calc_age(birthday):
         today = date.today()
@@ -166,7 +151,7 @@ def students_page():
     # 4. Chuẩn hóa dữ liệu theo format cũ để template dùng lại
     students_optimized = []
     for s in students:
-        record = latest_by_student.get(s.id)
+        record = today_by_student.get(s.id)
         current_record = {}
         if record:
             current_record = {
@@ -184,6 +169,7 @@ def students_page():
             'phone': s.parentPhone,
             'current_record': current_record
         })
+
 
     # 5. Lấy sĩ số tối đa từ cấu hình hệ thống (nếu có)
     max_capacity = int(dao.get_system_config('maxNumber', default=len(students_optimized)))
@@ -213,10 +199,11 @@ def update_student():
     """
     API cập nhật thông tin học sinh
     """
-    updated = request.get_json()
-    student_id = updated.get('id')
-
-    result = dao.update_student(student_id, updated)
+    data = request.get_json()
+    student_id = data.get('id')
+    temp = data.get('temp')
+    weight = data.get('weight')
+    result = dao.save_health_record(student_id,record_date=None, temp=temp, weight=weight,note=None)
 
     if result:
         return jsonify({"success": True, "student": result})
@@ -231,6 +218,7 @@ def health_management():
 
     date_str = request.args.get('date')
     selected_date = today
+    print(selected_date)
     if date_str:
         try:
             selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -291,72 +279,6 @@ def health_management():
         pagination=pagination
     )
 
-
-# ==================== MEAL MANAGEMENT ROUTES ====================
-@app.route('/meal-management')
-def meal_management():
-    """
-    Trang quản lý bữa ăn
-    """
-    # 1. Xử lý ngày tháng
-    today_date = date.today()
-    today_str = today_date.isoformat()
-    date_str_from_request = request.args.get('date')
-
-    selected_date = today_date
-    if date_str_from_request:
-        try:
-            selected_date = datetime.strptime(date_str_from_request, '%Y-%m-%d').date()
-        except ValueError:
-            pass
-
-    selected_date_str = selected_date.isoformat()
-    current_month = selected_date.strftime('%Y-%m')
-
-    # 2. Lấy danh sách học sinh từ database
-    students = Student.query.filter(Student.active == True).all()
-
-    # 3. Lấy cấu hình hệ thống để biết đơn giá bữa ăn
-    meal_cost_per_day = dao.get_system_config('mealFee', default=50000)
-
-    # 4. Tính tổng số ngày ăn trong tháng hiện tại dựa trên hóa đơn
-    invoices = Invoice.query.filter(Invoice.active == True).all()
-
-    monthly_meal_count = {s.id: 0 for s in students}
-    for inv in invoices:
-        if inv.createdAt and inv.createdAt.strftime('%Y-%m') == current_month:
-            days = inv.mealDays or 0
-            monthly_meal_count[inv.student_id] = monthly_meal_count.get(inv.student_id, 0) + days
-
-    # 5. Chuẩn hóa dữ liệu cho template
-    students_optimized = []
-    for s in students:
-        student_id = s.id
-
-        # Hiện tại chưa có bảng chấm công bữa ăn theo ngày trong DB,
-        # nên mặc định trạng thái "đã ăn hôm nay" là False
-        daily_status = {
-            today_str: {
-                'ate_today': False
-            }
-        }
-
-        students_optimized.append({
-            'id': student_id,
-            'name': f"{s.lastName} {s.firstName}",
-            'daily_status': daily_status,
-            'total_meals_eaten': monthly_meal_count.get(student_id, 0),
-            'meal_cost': meal_cost_per_day
-        })
-
-    return render_template(
-        "meal-management.html",
-        students=students_optimized,
-        today=today_str,
-        selected_date=selected_date_str
-    )
-
-
 @app.route('/health-management', methods=["POST"])
 @login_required
 def update_heath():
@@ -366,10 +288,109 @@ def update_heath():
     note = data['note']
     student_id = data['id']
     record_date = date.today()
-    dao.save_health_record(student_id,record_date,weight,temp,note)
+    record =dao.save_health_record(student_id, record_date, weight, temp, note)
     return jsonify({
-        'success': True
+        'success': True,
+        "record": {
+            "id": record.id,
+            "student_id": record.student_id,
+            "weight": record.weight,
+            "temp": record.bodyTemperature,
+            "note": record.note
+        }
     })
+
+
+# ==================== MEAL MANAGEMENT ROUTES ====================
+
+@app.route('/meal-management')
+def meal_management():
+    """
+    Trang quản lý bữa ăn
+    """
+    # --- 1. Xử lý ngày chọn ---
+    today = date.today()
+    date_str = request.args.get('date')
+    try:
+        selected_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else today
+    except ValueError:
+        selected_date = today
+
+    selected_date_str = selected_date.isoformat()
+
+    # --- 2. Lấy lớp và danh sách học sinh của giáo viên ---
+    teacher_id = current_user.id
+    teacher_class = dao.get_class_by_teacher_id(teacher_id)
+    class_id = teacher_class.id if teacher_class else None
+
+    pagination = dao.load_students(
+        class_id=class_id,
+        page_size=dao.get_current_student_count(class_id)
+    )
+
+    # --- 3. Lấy giá bữa ăn từ cấu hình ---
+    meal_cost_per_day = dao.get_system_config('mealFee', default=50000)
+
+    # --- 4. Chuẩn hóa dữ liệu học sinh ---
+    students_data = []
+
+    for s in pagination.get('students', []):
+        # Tổng số bữa ăn trong tháng
+        total_meals = dao.count_meal_days(
+            student_id=s.id,
+            month=selected_date.month,
+            year=selected_date.year
+        )
+
+        # Trạng thái hôm nay
+        ate_today = dao.is_ate_today(student_id=s.id, date=selected_date)
+
+        students_data.append({
+            'id': s.id,
+            'name': f"{s.lastName} {s.firstName}",
+            'daily_status': {selected_date_str: {'ate_today': ate_today}},
+            'total_meals_eaten': total_meals,
+            'meal_cost': meal_cost_per_day
+        })
+
+    return render_template(
+        "meal-management.html",
+        students=students_data,
+        selected_date=selected_date_str,
+        pagination=pagination,
+        today = today
+    )
+
+
+
+@app.route('/meal-attendance', methods=['POST'])
+@login_required
+def save_meal_attendance():
+    """
+    Nhận dữ liệu chấm công ăn uống từ frontend và lưu vào DB.
+    """
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'success': False, 'message': 'Không có dữ liệu gửi lên'}), 400
+
+    for record in data:
+        student_id = record.get('student_id')
+        date = record.get('date')
+        ate_today = bool(record.get('ate_today'))
+
+        dao.update_meal_attendance(
+            student_id=student_id,
+            date=date,
+            ate_today=ate_today,
+            teacher_id=current_user.id,
+            commit=False
+        )
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Đã lưu dữ liệu bữa ăn thành công!'})
+
+
 
 
 # ==================== TUITION MANAGEMENT ROUTES ====================
@@ -384,7 +405,7 @@ def tuition():
     base_tuition = dao.get_system_config('tuition', default=3000000)
     meal_cost_per_day = dao.get_system_config('mealFee', default=50000)
 
-    today =date.today()
+    today = date.today()
     month = today.month
     year = today.year
     invoices = dao.load_financial_records(month=month, year=year)
@@ -397,7 +418,9 @@ def tuition():
         base_tuition=base_tuition
     )
 
+
 from datetime import datetime, date
+
 
 @app.route('/api/invoices/pay', methods=['POST'])
 def pay_tuition_fee():
@@ -411,28 +434,10 @@ def pay_tuition_fee():
 
     invoice_id = data['invoice_id']
 
-    invoice = Invoice.query.get(invoice_id)
-    if not invoice:
-        return jsonify({
-            'success': False,
-            'message': 'Không tìm thấy hóa đơn'
-        }), 404
-
-    if invoice.paymentDate:
-        return jsonify({
-            'success': False,
-            'message': 'Hóa đơn đã được thanh toán'
-        }), 400
-
-    # ===== THANH TOÁN =====
-    invoice.paymentDate = datetime.now()
-    invoice.is_paid = True   # nếu có field này
-    db.session.commit()
+    dao.pay_invoice(invoice_id)
 
     return jsonify({
         'success': True,
-        'invoice_id': invoice.id,
-        'paymentDate': invoice.paymentDate.isoformat()
     }), 200
 
 

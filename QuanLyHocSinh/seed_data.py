@@ -34,6 +34,17 @@ with app.app_context():
     tuition = float(SystemConfig.query.filter_by(key='tuition').first().value)
     mealFee = float(SystemConfig.query.filter_by(key='mealFee').first().value)
 
+    # ================== ADMIN ==================
+
+    admin1 = User(
+        firstName='Tuan',
+        lastName='Hung',
+        username='admin1',
+        password=md5('123456'),
+        email='admin@school.edu.vn',
+        user_role=UserRole.ADMIN
+    )
+
     # ================== GIÁO VIÊN ==================
     teacher1 = User(
         firstName='Lan',
@@ -53,7 +64,7 @@ with app.app_context():
         user_role=UserRole.TEACHER
     )
 
-    db.session.add_all([teacher1, teacher2])
+    db.session.add_all([admin1,teacher1, teacher2])
     db.session.commit()
 
     # ================== LỚP ==================
@@ -126,12 +137,15 @@ with app.app_context():
     today = date.today()
     month = today.month
     year = today.year
-    import calendar
     import random
+
+    import calendar
+    from datetime import date
 
     meal_records = []
 
     days_in_month = calendar.monthrange(year, month)[1]
+    today = date.today()
 
     for s in students:
         meal_days_target = random.randint(20, 26)
@@ -140,17 +154,19 @@ with app.app_context():
         for day in range(1, days_in_month + 1):
             d = date(year, month, day)
 
-            if d.weekday() == 6:  # Chủ nhật
+            if d.weekday() == 6 or d >= today:
                 continue
 
-            meal_records.append(
-                MealAttendance(
-                    student_id=s.id,
-                    date=d,
-                    hasMeal=True,
-                    teacher_id=s.class_.teacher_id
+            ate_today = random.random() < 0.8  # 90% xác suất có ăn
+            if ate_today:
+                meal_records.append(
+                    MealAttendance(
+                        student_id=s.id,
+                        date=d,
+                        hasMeal=True,
+                        teacher_id=s.class_.teacher_id
+                    )
                 )
-            )
 
             count += 1
             if count >= meal_days_target:
@@ -162,8 +178,6 @@ with app.app_context():
     print("✅ Đã tạo MealAttendance")
 
     # ================== INVOICE ==================
-
-
     invoices = []
 
     for s in students:

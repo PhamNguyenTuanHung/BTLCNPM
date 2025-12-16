@@ -88,7 +88,7 @@ def load_students(class_id=None, kw=None, page=1, page_size=10):
             (Student.lastName.ilike(f"%{kw}%"))
         )
 
-    pagination = query.order_by(Student.id.desc()).paginate(
+    pagination = query.order_by(Student.id).paginate(
         page=page,
         per_page=page_size,
         error_out=False
@@ -282,6 +282,10 @@ def save_health_record(student_id, record_date, weight, temp, note):
     """
 
     # Tìm bản ghi tồn tại
+    if record_date is None:
+        record_date = date.today()
+    if isinstance(record_date, str):
+        record_date = datetime.strptime(record_date, "%Y-%m-%d").date()
     record = HealthRecord.query.filter_by(
         student_id=student_id,
         recordingDate=record_date,
@@ -309,42 +313,27 @@ def save_health_record(student_id, record_date, weight, temp, note):
 
 
 # ==================== MEAL ATTENDANCE FUNCTIONS ====================
-def load_meal_records(date_filter=None, student_id=None):
-    """
-    Tải bản ghi các bữa ăn
-    """
-    records = ultils.load_meal_records()
-
-    if date_filter:
-        records = [r for r in records if r.get('date') == date_filter]
-
-    if student_id:
-        records = [r for r in records if r.get('student_id') == int(student_id)]
-
-    return records
 
 
-def save_meal_record(record_data):
-    """
-    Lưu bản ghi chấm công ăn
-    """
-    records = ultils.load_meal_records()
+def update_meal_attendance(student_id, date, ate_today, teacher_id, commit=True):
+    if isinstance(date, str):
+        date = datetime.strptime(date, '%Y-%m-%d').date()
 
-    student_id = record_data.get('student_id')
-    record_date = record_data.get('date')
+    record = MealAttendance.query.filter_by(student_id=student_id, date=date).first()
 
-    updated = False
-    for record in records:
-        if record['student_id'] == student_id and record['date'] == record_date:
-            record.update(record_data)
-            updated = True
-            break
+    if record:
+        record.hasMeal = ate_today
+    else:
+        record = MealAttendance(
+            student_id=student_id,
+            date=date,
+            hasMeal=ate_today,
+            teacher_id=teacher_id
+        )
+        db.session.add(record)
 
-    if not updated:
-        records.append(record_data)
-
-    ultils.save_meal_records(records)
-    return record_data
+    if commit:
+        db.session.commit()
 
 from sqlalchemy import extract, func
 
@@ -361,6 +350,13 @@ def count_meal_days(student_id, month, year):
         )
         .scalar()
     )
+
+def is_ate_today(student_id,date):
+    return db.session.query(MealAttendance).filter(
+        MealAttendance.student_id == student_id,
+        MealAttendance.hasMeal == True,
+        MealAttendance.date == date
+    ).first() is not None
 
 # ==================== FINANCIAL FUNCTIONS ====================
 def load_financial_records(month=None, year=None):
@@ -414,24 +410,6 @@ def load_financial_records(month=None, year=None):
 
     return financial_records
 
-
-
-def update_payment_status(student_id, month, paid_status):
-    """
-    Cập nhật trạng thái thanh toán
-    """
-    records = ultils.load_financial_records()
-
-    for record in records:
-        if record.get('student_id') == int(student_id) and record.get('month') == month:
-            record['paid_status'] = paid_status
-            if paid_status:
-                record['payment_date'] = date.today().isoformat()
-            ultils.save_data(records, ultils.FINANCE_FILE)
-            return record
-
-    return None
-
 def is_invoice_paid(student_id, month, year):
     invoice = Invoice.query.filter_by(
         student_id=student_id,
@@ -462,6 +440,36 @@ def update_invoice_payment(student_id, month, year):
     invoice.paymentDate = datetime.utcnow()
     db.session.commit()
     return True
+
+def pay_invoice(invoice_id):
+    """
+    Thanh toán hóa đơn theo invoice_id.
+    Trả về dict {'success': bool, 'message': str} và status code nếu cần.
+    """
+    # Lấy hóa đơn (cách mới với SQLAlchemy 2.x)
+    invoice = db.session.get(Invoice, invoice_id)
+
+    if not invoice:
+        return {
+            'success': False,
+            'message': 'Không tìm thấy hóa đơn'
+        }, 404
+
+    if invoice.paymentDate:
+        return {
+            'success': False,
+            'message': 'Hóa đơn đã được thanh toán'
+        }, 400
+
+    # ===== THANH TOÁN =====
+    invoice.paymentDate = datetime.now()
+    invoice.is_paid = True  # nếu có field này
+    db.session.commit()
+
+    return {
+        'success': True,
+        'message': 'Thanh toán hóa đơn thành công'
+    }, 200
 
 def generate_monthly_invoices(tuition, meal_fee):
     now = datetime.now()
