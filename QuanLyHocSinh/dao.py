@@ -526,3 +526,20 @@ def get_average_weight_chart_data(all_health_records):
         'data': data,
         'title': "Cân nặng trung bình"
     }
+
+def get_invoice_data(student_id):
+    """Hàm lấy dữ liệu hóa đơn dưới db"""
+    student = Student.query.get(student_id)
+
+    invoice = Invoice.query \
+        .filter(Invoice.student_id == student_id) \
+        .order_by(Invoice.createdAt.desc()) \
+        .first()
+
+    if not student or not invoice:
+        return None
+
+    return {
+        "student": student,
+        "invoice": invoice
+    }

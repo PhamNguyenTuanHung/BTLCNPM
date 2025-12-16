@@ -2,8 +2,12 @@
 # File này khởi tạo Flask app và định nghĩa các route chính
 
 from datetime import datetime, date
-from flask import render_template, request, redirect, jsonify, session
+from flask import render_template, request, redirect, jsonify, session, send_file, abort
 from flask_login import login_user, logout_user, current_user, login_required
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from io import BytesIO
+from QuanLyHocSinh.dao import get_invoice_data
 
 from QuanLyHocSinh import app, dao, login as login_manager, db
 from QuanLyHocSinh.ultils import ultils
@@ -411,6 +415,21 @@ def statistics():
         revenue_chart_data=chart_data['revenue_chart'],
         weight_chart_data=chart_data['weight_chart']
     )
+
+
+# ==================== INVOICE ROUTES ====================
+@app.route('/invoice/<int:student_id>')
+def invoice(student_id):
+    data = get_invoice_data(student_id)
+    if not data:
+        abort(404)
+
+    return render_template(
+        'invoice.html',
+        student=data['student'],
+        invoice=data['invoice']
+    )
+
 
 
 # ==================== ADMIN ROUTES ====================
