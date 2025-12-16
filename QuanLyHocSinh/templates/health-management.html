@@ -13,26 +13,37 @@
                 <p class="subtitle">Ghi nhận sức khỏe cho trẻ trong lớp</p>
             </div>
         </div>
-        <form method="get" class="date-picker-form">
-            <input
-                    type="date"
-                    name="date"
-                    value="{{ selected_date }}"
-                    max="{{ today }}"
-                    onchange="this.form.submit()"
-                    class="date-picker-input"
-            >
-        </form>
+        <div class="date-picker" style="margin-top: 1rem;">
+            <label for="record-date">Chọn ngày:</label>
+            <input type="date" id="record-date"
+                   value="{{ selected_date }}">
+        </div>
 
         <div class="progress-section">
             <p class="progress-text">Tiến độ ghi nhận</p>
             <div class="progress-bar-container">
-                <div class="progress-bar-fill"
-                     style="width: {{ progress_stats.percentage | round(0) }}%;"></div>
+                <div
+                        class="progress-bar-fill"
+                        id="progress-bar"
+                        style="width: {{ progress_stats.percentage | round(0) }}%;">
+                </div>
             </div>
             <span class="progress-count">
-                {{ progress_stats.completed }}/{{ progress_stats.total }}
+                <span id="completed-count">{{ progress_stats.completed }}</span>
+                /
+                <span id="total-count">{{ progress_stats.total }}</span>
             </span>
+        </div>
+        <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 class="icon-search">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.3-4.3"></path>
+            </svg>
+            <input type="text" id="search-input" placeholder="Tìm kiếm theo tên trẻ hoặc phụ huynh..."
+                   class="search-input"
+                   value="{{ request.args.get('keyword', '') }}">
         </div>
     </div>
 
@@ -58,6 +69,7 @@
 
         <div class="student-health-card"
              data-student-id="{{ student.id }}"
+             data-recorded="{{ '1' if student.current_record else '0' }}"
              style="grid-template-columns: 200px 1fr 1fr 120px 1.5fr 100px;">
 
             <!-- Name -->
@@ -123,7 +135,7 @@
         {% endif %}
 
         {% for p in range(1, pagination.pages + 1) %}
-        <a href="?page={{ p }}"
+        <a href="?page={{ p }}&keyword={{ request.args.get('keyword','') }}&date={{ selected_date }}"
            class="{{ 'active' if p == pagination.page else '' }}">
             {{ p }}
         </a>
@@ -135,4 +147,125 @@
     </div>
 
 </div>
+<script>
+    function updateHealth(btn) {
+        const card = btn.closest('.student-health-card');
+        if (!card) return;
+
+        const studentId = card.dataset.studentId;
+        const wasRecorded = card.dataset.recorded === "1";
+
+        const weightInput = card.querySelector('.input-weight');
+        const tempInput = card.querySelector('.input-temp');
+        const noteInput = card.querySelector('.input-note');
+
+        const weight = weightInput.value;
+        const temp = tempInput.value;
+        const note = noteInput.value.trim();
+
+        // validate nhẹ
+        if (temp && (temp < 30 || temp > 45)) {
+            alert("Nhiệt độ không hợp lệ!");
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "Đang lưu...";
+
+        fetch("/health-management", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                id: studentId,
+                weight,
+                temp,
+                note
+            })
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) throw new Error("Save failed");
+
+                // ===== UPDATE UI =====
+                updateHealthUI(card, temp);
+
+                // ===== UPDATE PROGRESS (CHỈ LẦN ĐẦU) =====
+                if (!wasRecorded) {
+                    const completedEl = document.getElementById("completed-count");
+                    const totalEl = document.getElementById("total-count");
+                    const progressBar = document.getElementById("progress-bar");
+
+                    let completed = parseInt(completedEl.textContent);
+                    const total = parseInt(totalEl.textContent);
+
+                    completed++;
+                    completedEl.textContent = completed;
+
+                    const percent = Math.round((completed / total) * 100);
+                    progressBar.style.width = percent + "%";
+
+                    card.dataset.recorded = "1";
+
+                    // đánh dấu avatar đã ghi
+                    const avatar = card.querySelector(".avatar-circle");
+                    if (avatar) avatar.classList.add("recorded");
+                }
+
+                alert("✅ Đã lưu sức khỏe!");
+            })
+            .catch(err => {
+                console.error(err);
+                alert("❌ Lỗi lưu dữ liệu!");
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = "Lưu";
+            });
+    }
+
+    function updateHealthUI(card, temp) {
+        const statusEl = card.querySelector('.status-indicator');
+        const tempInput = card.querySelector('.input-temp');
+
+        if (!temp) {
+            statusEl.textContent = "-";
+            statusEl.className = "status-indicator";
+            tempInput.classList.remove("status-high-input");
+            return;
+        }
+
+        const high = parseFloat(temp) >= 37.5;
+
+        statusEl.textContent = high ? "Cao" : "Bình thường";
+        statusEl.className = `status-indicator ${high ? "status-high" : "status-normal"}`;
+        tempInput.classList.toggle("status-high-input", high);
+    }
+
+    const searchInput = document.getElementById("search-input");
+
+    searchInput.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+
+        const keyword = searchInput.value.trim();
+        const params = new URLSearchParams(window.location.search);
+
+        params.set("keyword", keyword);
+        params.set("page", 1);
+
+        const date = document.querySelector('input[name="date"]')?.value;
+        if (date) params.set("date", date);
+
+        window.location.href = `/health-management?${params.toString()}`;
+    });
+
+    document.getElementById('record-date').addEventListener('change', (e) => {
+        const newDate = e.target.value;
+        console.log(`Đã chọn ngày mới: ${newDate}. Tải dữ liệu chấm công tương ứng...`);
+        const params = new URLSearchParams(window.location.search);
+
+        params.set("date", newDate);
+        params.set("page", 1);
+        window.location.href = `/health-management?${params.toString()}`;
+    });
+</script>
 {% endblock %}

@@ -17,6 +17,7 @@
             </div>
         </div>
 
+
         <div class="date-picker" style="margin-top: 1rem;">
             <label for="record-date">Chọn ngày:</label>
             <input type="date" id="record-date"
@@ -27,10 +28,20 @@
     <div class="content-card full-width">
         <h3>Cập nhật các học sinh ăn ngày {{selected_date}}</h3>
         <p class="table-note">Tick ✔ nếu trẻ đã ăn (áp dụng cho toàn bộ bữa ăn trong ngày).</p>
-
+        <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 class="icon-search">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.3-4.3"></path>
+            </svg>
+            <input type="text" id="search-input" placeholder="Tìm kiếm theo tên trẻ hoặc phụ huynh..."
+                   class="search-input"
+                   value="{{ request.args.get('keyword', '') }}"
+                   onkeydown="if(event.keyCode === 13) searchStudents()">
+        </div>
         <div class="meal-table-wrapper">
-            <input type="text" id="search-input" placeholder="Tìm kiếm theo tên trẻ"
-                   class="search-input">
+
             <table class="meal-table">
                 <thead>
                 <tr>
@@ -137,7 +148,7 @@
         const date = getSelectedDate();
         const data = [];
 
-      document.querySelectorAll('.meal-table tbody tr').forEach(tr => {
+        document.querySelectorAll('.meal-table tbody tr').forEach(tr => {
             const studentId = tr.dataset.studentId;
 
             // Lấy trạng thái của checkbox duy nhất (name="ate_today")

@@ -1,6 +1,6 @@
 # model.py
 from sqlalchemy import (
-    Column, Integer, String, Boolean, Float, Numeric, DateTime, ForeignKey, Enum, Date
+    Column, Integer, String, Boolean, Float, Numeric, DateTime, ForeignKey, Enum, Date, Index
 )
 from sqlalchemy.orm import relationship
 from flask_login import UserMixin
@@ -116,28 +116,15 @@ class HealthRecord(BaseModel):
 class MealAttendance(BaseModel):
     __tablename__ = 'meal_attendance'
 
-    date = Column(Date, nullable=False)
-
-    # Có ăn hay không
-    hasMeal = Column(Boolean, default=True)
-
-    # Quan hệ
     student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
-    teacher_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    attendance_date = Column(DateTime, nullable=False)
+    created_by = Column(Integer, ForeignKey('users.id'))
+    note = Column(String(255))
 
-    createdAt = Column(DateTime, default=datetime.utcnow)
-
+    # Index để tối ưu query
     __table_args__ = (
-        db.UniqueConstraint(
-            'student_id', 'date',
-            name='unique_student_meal_per_day'
-        ),
+        Index('idx_student_date', 'student_id', 'attendance_date'),
     )
-
-    student = relationship('Student', backref='meal_records')
-
-    def __str__(self):
-        return f"Meal(student={self.student_id}, date={self.date}, hasMeal={self.hasMeal})"
 
 
 # ======================= INVOICE =======================
@@ -173,7 +160,6 @@ class Invoice(BaseModel):
 
     def __str__(self):
         return f"Invoice(student={self.student_id}, {self.month}/{self.year})"
-
 
 
 # ======================= SYSTEM CONFIG =======================

@@ -104,7 +104,9 @@ def load_students(class_id=None, kw=None, page=1, page_size=10):
     }
 
 
-def count_students(class_id=None, kw=None):
+
+
+def count_students(class_id=None):
     """
     Đếm số lượng học sinh
     """
@@ -112,10 +114,6 @@ def count_students(class_id=None, kw=None):
 
     if class_id:
         students = [s for s in students if s.get('class_id') == int(class_id)]
-
-    if kw:
-        kw = kw.lower()
-        students = [s for s in students if kw in s.get('name', '').lower()]
 
     return len(students)
 
@@ -194,6 +192,11 @@ def update_student(student_id, student_data):
         print(f"Error updating student: {e}")
         return None
 
+def calc_age(birthday):
+    today = date.today()
+    return today.year - birthday.year - (
+        (today.month, today.day) < (birthday.month, birthday.day)
+    )
 
 def delete_student(student_id):
     """
@@ -204,16 +207,65 @@ def delete_student(student_id):
     ultils.save_students(students)
     return True
 
+def build_student_view(
+    students,
+    health_records=None,
+    include_age=False,
+    include_gender=False,
+    include_parent=False,
+    include_phone=False
+):
+    result = []
+
+    for s in students:
+        item = {
+            'id': s.id,
+            'name': f"{s.lastName} {s.firstName}"
+        }
+
+        # Health record
+        if health_records is not None:
+            record = health_records.get(s.id)
+            item['current_record'] = (
+                {
+                    'weight': record.weight,
+                    'temp': record.bodyTemperature,
+                    'note': record.note
+                } if record else {}
+            )
+
+        if include_age:
+            item['age'] = f"{calc_age(s.birthday)} tuổi"
+
+        if include_gender:
+            item['gender'] = 'Nam' if s.gender else 'Nữ'
+
+        if include_parent:
+            item['parent'] = s.parentName
+
+        if include_phone:
+            item['phone'] = s.parentPhone
+
+        result.append(item)
+
+    return result
+
 
 # ==================== HEALTH RECORD FUNCTIONS ====================
+from sqlalchemy import or_
+
 def load_students_with_health(
-        teacher_id,
-        date_filter=None,
-        page=1,
-        page_size=10
+    teacher_id,
+    date_filter=None,
+    kw=None,
+    page=1,
+    page_size=10
 ):
     """
-    Lấy danh sách học sinh theo lớp giáo viên + hồ sơ sức khỏe theo ngày (phân trang)
+    Lấy danh sách học sinh theo lớp giáo viên
+    + hồ sơ sức khỏe theo ngày
+    + tìm kiếm (kw)
+    + phân trang
     """
 
     query = (
@@ -223,8 +275,19 @@ def load_students_with_health(
             Class.teacher_id == teacher_id,
             Student.active == True
         )
-        .order_by(Student.id.asc())
     )
+
+    # 🔍 Search keyword
+    if kw:
+        keyword = f"%{kw.strip()}%"
+        query = query.filter(
+            or_(
+                Student.firstName.ilike(keyword),
+                Student.lastName.ilike(keyword)
+            )
+        )
+
+    query = query.order_by(Student.id.asc())
 
     pagination = query.paginate(
         page=page,
@@ -234,10 +297,11 @@ def load_students_with_health(
 
     students = pagination.items
 
-    # lấy record theo ngày cho các student trong page
-    records = []
+    # 🩺 Lấy health record theo ngày cho các student trong page
+    records_by_student = {}
     if date_filter and students:
         student_ids = [s.id for s in students]
+
         records = (
             db.session.query(HealthRecord)
             .filter(
@@ -248,16 +312,23 @@ def load_students_with_health(
             .all()
         )
 
-    records_by_student = {r.student_id: r for r in records}
+        records_by_student = {r.student_id: r for r in records}
 
     return {
         'students': students,
         'records_by_student': records_by_student,
-        'pagination': pagination,
+        'pagination': pagination
     }
 
+def get_today_health_records():
+    today = date.today()
+    records = db.session.query(HealthRecord).filter(
+        func.date(HealthRecord.recordingDate) == today
+    ).all()
 
-def count_recorded_students(teacher_id, date_filter):
+    return {r.student_id: r for r in records}
+
+def count_students_with_health_record(teacher_id, date):
     return (
         db.session.query(HealthRecord.student_id)
         .join(Student)
@@ -268,12 +339,46 @@ def count_recorded_students(teacher_id, date_filter):
             HealthRecord.active == True,
             HealthRecord.weight.isnot(None),
             HealthRecord.bodyTemperature.isnot(None),
-            db.func.date(HealthRecord.recordingDate) == date_filter
+            db.func.date(HealthRecord.recordingDate) == date
         )
         .distinct()
         .count()
     )
 
+def build_health_progress_stats(teacher_id, date, total_students):
+    recorded_count = count_students_with_health_record(
+        teacher_id=teacher_id,
+        date=date
+    )
+
+    return {
+        'completed': recorded_count,
+        'total': total_students,
+        'percentage': (recorded_count / total_students * 100)
+        if total_students else 0
+    }
+
+def build_health_student_view(students, records_by_student):
+    result = []
+
+    for s in students:
+        record = records_by_student.get(s.id)
+
+        current_record = {}
+        if record:
+            current_record = {
+                'weight': record.weight,
+                'temp': record.bodyTemperature,
+                'note': record.note
+            }
+
+        result.append({
+            'id': s.id,
+            'name': f"{s.lastName} {s.firstName}",
+            'current_record': current_record
+        })
+
+    return result
 
 def save_health_record(student_id, record_date, weight, temp, note):
     """
@@ -314,48 +419,47 @@ def save_health_record(student_id, record_date, weight, temp, note):
 
 # ==================== MEAL ATTENDANCE FUNCTIONS ====================
 
-
 def update_meal_attendance(student_id, date, ate_today, teacher_id, commit=True):
+    # Chuẩn hoá date
     if isinstance(date, str):
         date = datetime.strptime(date, '%Y-%m-%d').date()
 
-    record = MealAttendance.query.filter_by(student_id=student_id, date=date).first()
+    # Tìm bản ghi theo NGÀY (bỏ giờ)
+    record = MealAttendance.query.filter(
+        MealAttendance.student_id == student_id,
+        func.date(MealAttendance.attendance_date) == date
+    ).first()
 
-    if record:
-        record.hasMeal = ate_today
+    if ate_today:
+        # ✅ CÓ ĂN → đảm bảo có record
+        if not record:
+            record = MealAttendance(
+                student_id=student_id,
+                attendance_date=datetime.combine(date, datetime.min.time()),
+                created_by=teacher_id,
+                note=None
+            )
+            db.session.add(record)
     else:
-        record = MealAttendance(
-            student_id=student_id,
-            date=date,
-            hasMeal=ate_today,
-            teacher_id=teacher_id
-        )
-        db.session.add(record)
+        # ❌ KHÔNG ĂN → xoá record nếu tồn tại
+        if record:
+            db.session.delete(record)
 
     if commit:
         db.session.commit()
-
 from sqlalchemy import extract, func
 
 def count_meal_days(student_id, month, year):
-    return (
-        db.session.query(
-            func.count(func.distinct(func.date(MealAttendance.date)))
-        )
-        .filter(
-            MealAttendance.student_id == student_id,
-            MealAttendance.hasMeal == True,
-            extract('month', MealAttendance.date) == month,
-            extract('year', MealAttendance.date) == year
-        )
-        .scalar()
-    )
-
-def is_ate_today(student_id,date):
-    return db.session.query(MealAttendance).filter(
+    return db.session.query(func.count(MealAttendance.id)).filter(
         MealAttendance.student_id == student_id,
-        MealAttendance.hasMeal == True,
-        MealAttendance.date == date
+        extract('month', MealAttendance.attendance_date) == month,
+        extract('year', MealAttendance.attendance_date) == year
+    ).scalar() or 0
+
+def is_ate_today(student_id, date):
+    return db.session.query(MealAttendance.id).filter(
+        MealAttendance.student_id == student_id,
+        func.date(MealAttendance.attendance_date) == date
     ).first() is not None
 
 # ==================== FINANCIAL FUNCTIONS ====================
@@ -513,6 +617,14 @@ def load_classes():
     # Có thể lấy từ database hoặc JSON tùy theo thiết kế
     return Class.query.filter(Class.active == True).all()
 
+def get_teacher_class_info(teacher_id):
+    teacher_class = get_class_by_teacher_id(teacher_id=teacher_id)
+
+    if not teacher_class:
+        return None, 0
+
+    current_count = get_current_student_count(class_id=teacher_class.id)
+    return teacher_class.id, current_count
 
 def get_class_by_teacher_id(teacher_id):
     """
@@ -520,13 +632,11 @@ def get_class_by_teacher_id(teacher_id):
     """
     return Class.query.filter(Class.teacher_id == teacher_id).first()
 
-
 def get_class_by_id(class_id):
     """
     Lấy thông tin lớp theo ID
     """
     return Class.query.get(class_id)
-
 
 def get_current_student_count(class_id):
     return Student.query.filter(

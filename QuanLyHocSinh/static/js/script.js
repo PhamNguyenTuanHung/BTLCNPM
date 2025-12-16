@@ -1,340 +1,167 @@
 document.addEventListener("DOMContentLoaded", () => {
+    const $ = (s, p = document) => p.querySelector(s);
+    const $$ = (s, p = document) => [...p.querySelectorAll(s)];
 
-    const editButtons = document.querySelectorAll(".btn-edit");
-    const deleteButtons = document.querySelectorAll(".btn-delete");
+    /* ================= MODAL ================= */
+    const modal = $("#student-modal");
+    const form = $("#student-form");
 
-    // const addButton = document.getElementById("add-student-btn");
+    const fields = {
+        id: $("#student-id"),
+        name: $("#student-name"),
+        gender: $("#student-gender"),
+        parent: $("#student-parent"),
+        phone: $("#student-phone"),
+        weight: $("#student-weight"),
+        temp: $("#student-temp"),
+        note: $("#student-note")
+    };
 
-    const studentModal = document.getElementById("student-modal");
-    const studentForm = document.getElementById("student-form");
-    const modalTitle = document.getElementById("modal-title");
+    const openModal = (data = {}) => {
+        modal.classList.add("active");
+        modal.style.display = "flex";
+        Object.keys(fields).forEach(k => fields[k].value = data[k] || "");
+    };
 
-    const closeBtn = document.getElementById("close-modal-btn");
-    const cancelBtn = document.getElementById("cancel-modal-btn");
+    const closeModal = () => {
+        modal.classList.remove("active");
+        modal.style.display = "none";
+    };
 
-    const studentIdInput = document.getElementById("student-id");
-    const studentName = document.getElementById("student-name");
-    const studentGender = document.getElementById("student-gender");
-    const studentParent = document.getElementById("student-parent");
-    const studentPhone = document.getElementById("student-phone");
-    const studentWeight = document.getElementById("student-weight");
-    const studentTemp = document.getElementById("student-temp");
-    const studentNode = document.getElementById("student-note");
+    $("#close-modal-btn")?.addEventListener("click", closeModal);
+    $("#cancel-modal-btn")?.addEventListener("click", closeModal);
+    modal.addEventListener("click", e => e.target === modal && closeModal());
 
-
-    // ==== OPEN MODAL ====
-    function openModal(mode, studentData = null) {
-        studentModal.style.display = "flex";
-        studentModal.classList.add("active");
-        if (studentData) {
-            modalTitle.textContent = "Cập nhật sức khỏe trẻ";
-            studentIdInput.value = studentData.id;
-            studentName.value = studentData.name;
-            studentGender.value = studentData.gender;
-            studentParent.value = studentData.parent;
-            studentPhone.value = studentData.phone;
-            studentWeight.value = studentData.weight;
-            studentTemp.value = studentData.temp;
-            studentNode.value = studentData.note
-        }
-    }
-
-    // === CLOSE MODAL ===
-    function closeModal() {
-        studentModal.style.display = "none";
-        studentModal.classList.remove("active");
-    }
-
-    closeBtn.addEventListener("click", closeModal);
-    cancelBtn.addEventListener("click", closeModal);
-
-    // === ADD BUTTON ===
-    // addButton.addEventListener("click", () => openModal("add"));
-
-    // === EDIT BUTTONS ===
-    editButtons.forEach(btn => {
+    /* ================= EDIT ================= */
+    $$(".btn-edit").forEach(btn => {
         btn.addEventListener("click", () => {
-            const id = btn.dataset.id;
-            const card = document.querySelector(`.student-card[data-id="${id}"]`);
-            if (!card) return console.warn("Không tìm thấy thẻ học sinh với ID:", id);
+            const card = $(`.student-card[data-id="${btn.dataset.id}"]`);
+            if (!card) return;
 
-            // Lấy weight và temp, xử lý trường hợp '--'
-            const weightText = card.querySelector(".health-details div:nth-child(1) p:nth-child(2)")?.textContent.replace(" kg", "").trim() || "";
-            const tempText = card.querySelector(".temperature-info p")?.textContent.replace("°C", "").trim() || "";
-            const noteText = card.querySelector(".student-note")?.textContent.trim() || "";
-
-            const studentData = {
-                id: id,
-                name: card.querySelector(".student-name")?.textContent.trim() || "",
-                gender: card.querySelector(".gender-tag")?.textContent.trim() || "",
-                parent: card.querySelector(".parent-info p:nth-child(1)")?.textContent.replace("Phụ huynh: ", "").trim() || "",
-                phone: card.querySelector(".parent-info p:nth-child(2)")?.textContent.replace("Điện thoại: ", "").trim() || "",
-                weight: weightText === '--' ? '' : weightText,
-                temp: tempText === '--' ? '' : tempText,
-                note: noteText === '--' ? '' : noteText
-
-            };
-            openModal("edit", studentData);
+            openModal({
+                id: btn.dataset.id,
+                name: $(".student-name", card)?.textContent.trim(),
+                gender: $(".gender-tag", card)?.textContent.trim(),
+                parent: $(".parent-info p:nth-child(1)", card)?.textContent.replace("Phụ huynh: ", "").trim(),
+                phone: $(".parent-info p:nth-child(2)", card)?.textContent.replace("Điện thoại: ", "").trim(),
+                weight: $(".health-details div:nth-child(1) p:nth-child(2)", card)?.textContent.replace(" kg", "").trim(),
+                temp: $(".temperature-info p", card)?.textContent.replace("°C", "").trim(),
+                note: $(".student-note", card)?.textContent.trim()
+            });
         });
     });
 
-    // === SUBMIT FORM ===
-    studentForm.addEventListener("submit", e => {
+    /* ================= SUBMIT HEALTH ================= */
+    form.addEventListener("submit", e => {
         e.preventDefault();
-        const studentData = {
-            id: studentIdInput.value,
-            weight: studentWeight.value,
-            temp: studentTemp.value,
-            note: studentNode.value
+
+        const payload = {
+            id: fields.id.value,
+            weight: fields.weight.value,
+            temp: fields.temp.value,
+            note: fields.note.value
         };
 
-
-        // POST request
-        fetch("http://127.0.0.1:5000/health-management", {
+        fetch("/health-management", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(studentData)
+            body: JSON.stringify(payload)
         })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    const card = document.querySelector(`.student-card[data-id="${studentData.id}"]`);
-                    if (!card) return;
-
-                    // --- Cập nhật thông tin cơ bản ---
-                    const nameEl = card.querySelector(".student-name");
-                    if (nameEl) nameEl.textContent = studentData.name;
-
-                    const parentEls = card.querySelectorAll(".parent-info p");
-                    if (parentEls[0]) parentEls[0].innerHTML = `<span>Phụ huynh:</span> ${studentData.parent}`;
-                    if (parentEls[1]) parentEls[1].innerHTML = `<span>Điện thoại:</span> ${studentData.phone}`;
-
-                    // --- Cập nhật cân nặng ---
-                    const weightP = card.querySelector(".health-details div:nth-child(1) p:nth-child(2)");
-                    if (weightP) weightP.textContent = studentData.weight ? `${studentData.weight} kg` : '-- kg';
-
-                    // --- Cập nhật nhiệt độ ---
-                    const tempContainer = card.querySelector(".temperature-info");
-                    if (tempContainer) {
-                        let tempP = tempContainer.querySelector("p");
-                        let tempTag = tempContainer.querySelector(".temp-tag");
-
-                        // Nếu chưa có p, tạo mới
-                        if (!tempP) {
-                            tempP = document.createElement("p");
-                            tempContainer.prepend(tempP);
-                        }
-
-                        if (studentData.temp) {
-                            tempP.textContent = `${studentData.temp}°C`;
-                            const status = parseFloat(studentData.temp) >= 37.5 ? "Cao" : "Bình thường";
-
-                            // Nếu chưa có temp-tag, tạo mới
-                            if (!tempTag) {
-                                tempTag = document.createElement("span");
-                                tempTag.classList.add("temp-tag");
-                                tempContainer.appendChild(tempTag);
-                            }
-
-                            tempTag.textContent = status;
-                            tempTag.className = `temp-tag ${status === "Cao" ? "high" : "normal"}`;
-                        } else {
-                            tempP.textContent = '--°C';
-                            if (tempTag) tempTag.remove(); // Xóa tag nếu chưa có nhiệt độ
-                        }
-                    }
-
-                    // --- Cập nhật giới tính ---
-                    const genderTag = card.querySelector(".gender-tag");
-                    const avatarWrapper = card.querySelector(".avatar-wrapper");
-                    const iconUser = card.querySelector(".icon-user");
-                    const genderClass = studentData.gender === "Nam" ? "male" : "female";
-
-                    if (genderTag) {
-                        genderTag.textContent = studentData.gender;
-                        genderTag.className = `gender-tag ${genderClass}`;
-                    }
-                    if (avatarWrapper) avatarWrapper.className = `avatar-wrapper ${genderClass}`;
-                    if (iconUser) {
-                        iconUser.classList.remove("male", "female");
-                        iconUser.classList.add(genderClass);
-                    }
-
-                    closeModal();
-                    alert("Cập nhật thành công!");
-                } else {
-                    alert("Có lỗi khi cập nhật học sinh.");
-                }
-
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) throw "Cập nhật thất bại";
+                updateHealthCard(payload);
+                closeModal();
+                alert("✅ Cập nhật thành công");
             })
-            .catch(err => console.error(err));
+            .catch(err => alert(err));
     });
 
+    const updateHealthCard = ({id, weight, temp}) => {
+        const card = $(`.student-card[data-id="${id}"]`);
+        if (!card) return;
 
-// ==== CLOSE MODAL ====
-    document.getElementById("close-modal-btn").addEventListener("click", () => {
-        editModal.style.display = "none";
-        editModal.classList.remove("active");
-    });
+        $(".health-details div:nth-child(1) p:nth-child(2)", card).textContent =
+            weight ? `${weight} kg` : "-- kg";
 
-    document.getElementById("cancel-modal-btn").addEventListener("click", () => {
-        editModal.style.display = "none";
-        editModal.classList.remove("active");
-    });
+        const tempBox = $(".temperature-info", card);
+        if (!tempBox) return;
 
-// === CLICK OUTSIDE TO CLOSE ===
-    studentModal.addEventListener("click", (e) => {
-        if (e.target === studentModal) {
-            studentModal.style.display = "none";
-            studentModal.classList.remove("active");
-        }
-    });
-// === XÓA HỌC SINH ===
+        let p = $("p", tempBox) || tempBox.prepend(document.createElement("p"));
+        let tag = $(".temp-tag", tempBox);
 
-    deleteButtons.forEach(btn => {
-        btn.addEventListener("click", () => {
-            const id = btn.dataset.id;
-            const card = document.querySelector(`.student-card[data-id="${id}"]`);
-            const name = card.querySelector(".student-name").textContent;
-
-            if (confirm(`Bạn có chắc muốn xóa trẻ ${name}? `)) {
-                card.remove();
+        if (temp) {
+            const high = parseFloat(temp) >= 37.5;
+            p.textContent = `${temp}°C`;
+            if (!tag) {
+                tag = document.createElement("span");
+                tag.className = "temp-tag";
+                tempBox.appendChild(tag);
             }
+            tag.textContent = high ? "Cao" : "Bình thường";
+            tag.className = `temp-tag ${high ? "high" : "normal"}`;
+        } else {
+            p.textContent = "--°C";
+            tag?.remove();
+        }
+    };
+
+    /* ================= DELETE ================= */
+    $$(".btn-delete").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const card = $(`.student-card[data-id="${btn.dataset.id}"]`);
+            const name = $(".student-name", card)?.textContent;
+            if (confirm(`Xóa trẻ ${name}?`)) card.remove();
         });
     });
+});
 
-// JS
-
-})
-;
-
-function updateHealth(btn) {
-    const card = btn.closest('.student-health-card');
-    const id = card.dataset.studentId;
-
-    const weightInput = card.querySelector('.input-weight');
-    const tempInput = card.querySelector('.input-temp');
-    const noteInput = card.querySelector('.input-note');
-
-    const weight = parseFloat(weightInput.value);
-    const temp = parseFloat(tempInput.value);
-    const note = noteInput.value.trim();
-
-    // Validate
-    if (isNaN(weight) || weight <= 0) {
-        alert("Cân nặng không hợp lệ!");
-        return;
-    }
-    if (isNaN(temp) || temp <= 30 || temp >= 45) {
-        alert("Nhiệt độ không hợp lệ!");
-        return;
-    }
-    if (note.length > 200) {
-        alert("Ghi chú quá dài (tối đa 200 ký tự)!");
-        return;
-    }
-
-    // POST dữ liệu
-    fetch("/health-management", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({id, weight, temp, note})
-    })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                alert("Đã lưu thành công!");
-
-                // === CẬP NHẬT TRẠNG THÁI TRÊN GIAO DIỆN ===
-                const statusCol = card.querySelector('.status-col .status-indicator');
-                if (!statusCol) return;
-
-                if (temp >= 37.5) {
-                    statusCol.textContent = "Cao";
-                    statusCol.classList.add("status-high");
-                    statusCol.classList.remove("status-normal");
-                } else {
-                    statusCol.textContent = "Bình thường";
-                    statusCol.classList.add("status-normal");
-                    statusCol.classList.remove("status-high");
-                }
-
-                // Thêm class input nếu muốn highlight nhiệt độ cao
-                tempInput.classList.toggle("status-high-input", temp >= 37.5);
-            }
-        }).catch(err => console.error("Error:", err));
-}
-
+/* ================= TUITION ================= */
 function payStudentTuition(btn) {
-    const card = btn.closest('.student-tuition-card');
-    if (!card) return;
+    const card = btn.closest(".student-tuition-card");
+    const invoiceId = card?.dataset.invoiceId;
+    if (!invoiceId || !confirm("Xác nhận đóng học phí?")) return;
 
-    const invoiceId = card.dataset.invoiceId;
-    if (!invoiceId) {
-        alert("Không tìm thấy hóa đơn!");
-        return;
-    }
-
-    if (!confirm("Xác nhận đóng học phí cho học sinh này?")) return;
-
-    // Khóa nút ngay khi click (chống spam)
     btn.disabled = true;
-    const originalText = btn.textContent;
-    btn.textContent = "Đang xử lý...";
 
     fetch("/api/invoices/pay", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({invoice_id: invoiceId})
+        body: JSON.stringify({ invoice_id: invoiceId })
     })
+        .then(r => r.json())
         .then(res => {
-            if (!res.ok) throw new Error("Network error");
-            return res.json();
-        })
-        .then(data => {
-            if (!data.success) {
-                throw new Error(data.message || "Thanh toán thất bại!");
-            }
+            if (!res.success) throw res.message;
 
-            // ===== UPDATE UI =====
+            // ✅ Update status
             const statusEl = card.querySelector(".tuition-status");
             if (statusEl) {
                 statusEl.textContent = "Đã thanh toán";
-                statusEl.classList.remove("status-unpaid", "text-danger");
-                statusEl.classList.add("status-paid", "text-success");
+                statusEl.classList.remove("text-danger", "status-unpaid");
+                statusEl.classList.add("text-success", "status-paid");
             }
 
-            btn.textContent = "Xuất HĐ";
-            btn.classList.add("btn-action-fee", "btn-export-invoice");
-
-            // (Tuỳ chọn) hiện toast thay vì alert
-            alert("✅ Đã đóng học phí!");
+            // ✅ Replace action button
+            btn.parentElement.innerHTML = `
+                <a href="/invoice/${invoiceId}"
+                   class="btn-action-fee btn-export-invoice">
+                    Xuất HĐ
+                </a>
+            `;
         })
-        .catch(err => {
-            console.error(err);
-            alert(err.message || "Lỗi kết nối server!");
-            btn.disabled = false;
-            btn.textContent = originalText;
-        });
+        .catch(err => alert(err))
+        .finally(() => btn.disabled = false);
 }
 
-
+/* ================= FILTER ================= */
 function searchStudents() {
-    const keyword = document.getElementById("search-input").value.trim();
-    const params = new URLSearchParams(window.location.search);
-    params.set("keyword", keyword);
-    params.set("page", 1);
-
-    window.location.href = `/students?${params.toString()}`;
+    const kw = $("#search-input").value.trim();
+    location.href = `/students?keyword=${encodeURIComponent(kw)}&page=1`;
 }
-
 
 function applyDateFilter() {
-    const date = document.getElementById("record-date").value.trim();
-    const params = new URLSearchParams(window.location.search);
-    params.set("date", date);
-    params.set("page", 1);
-    window.location.href = `/meal-management?${params.toString()}`;
+    const date = $("#record-date").value;
+    location.href = `/meal-management?date=${date}&page=1`;
 }
 
 

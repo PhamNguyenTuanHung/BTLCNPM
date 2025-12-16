@@ -42,6 +42,7 @@ def login_process():
     password = request.form.get('password')
 
     user = dao.auth_user(username=username, password=password)
+    print(user)
     if user:
         login_user(user=user)
 
@@ -112,19 +113,10 @@ def logout_process():
 @login_required
 def students_page():
     teacher_id = current_user.id
-    teacher_class = dao.get_class_by_teacher_id(teacher_id=teacher_id)
-
-    class_id = None
-    current_student_count = 0
-
-    if teacher_class:
-        class_id = teacher_class.id
-        current_student_count = dao.get_current_student_count(class_id=class_id)
-
     page = request.args.get("page", 1, type=int)
     keyword = request.args.get("keyword", "").strip()
 
-    today_str = date.today().isoformat()
+    class_id, current_student_count = dao.get_teacher_class_info(teacher_id)
 
     pagination = dao.load_students(
         class_id=class_id,
@@ -133,54 +125,30 @@ def students_page():
         kw=keyword
     )
 
-    today = date.today()
-
     students = pagination.get('students')
-    # 3. Lấy bản ghi sức khỏe mới nhất cho mỗi học sinh
-    today_records = db.session.query(HealthRecord).filter(
-        db.func.date(HealthRecord.recordingDate)  == today
-    ).all()
 
-    # Nếu muốn mapping theo student_id
-    today_by_student = {r.student_id: r for r in today_records}
+    today_records = dao.get_today_health_records()
 
-    def calc_age(birthday):
-        today = date.today()
-        return today.year - birthday.year - ((today.month, today.day) < (birthday.month, birthday.day))
+    students_view = dao.build_student_view(
+        students,
+        health_records=today_records,
+        include_age=True,
+        include_gender=True,
+        include_parent=True,
+        include_phone=True
+    )
 
-    # 4. Chuẩn hóa dữ liệu theo format cũ để template dùng lại
-    students_optimized = []
-    for s in students:
-        record = today_by_student.get(s.id)
-        current_record = {}
-        if record:
-            current_record = {
-                'weight': record.weight,
-                'temp': record.bodyTemperature,
-                'note': record.note
-            }
-
-        students_optimized.append({
-            'id': s.id,
-            'name': f"{s.lastName} {s.firstName}",
-            'age': f"{calc_age(s.birthday)} tuổi",
-            'gender': 'Nam' if s.gender else 'Nữ',
-            'parent': s.parentName,
-            'phone': s.parentPhone,
-            'current_record': current_record
-        })
-
-
-    # 5. Lấy sĩ số tối đa từ cấu hình hệ thống (nếu có)
-    max_capacity = int(dao.get_system_config('maxNumber', default=len(students_optimized)))
+    max_capacity = int(
+        dao.get_system_config('maxNumber', default=len(students_view))
+    )
 
     return render_template(
         "student.html",
-        students=students_optimized,
+        students=students_view,
         pagination=pagination,
         current_student_count=current_student_count,
         max_capacity=max_capacity,
-        today=today_str
+        today=date.today().isoformat()
     )
 
 
@@ -218,7 +186,6 @@ def health_management():
 
     date_str = request.args.get('date')
     selected_date = today
-    print(selected_date)
     if date_str:
         try:
             selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -227,56 +194,38 @@ def health_management():
 
     selected_date_str = selected_date.isoformat()
     page = request.args.get('page', 1, type=int)
+    keyword = request.args.get('keyword', '')
 
     teacher_id = current_user.id
+
+    teacher_class_info = dao.get_teacher_class_info(teacher_id)
+    print(teacher_class_info[1])
 
     result = dao.load_students_with_health(
         teacher_id=teacher_id,
         date_filter=selected_date_str,
         page=page,
+        kw=keyword,
         page_size=10
     )
-
-    students = result['students']
-    records_by_student = result['records_by_student']
-    pagination = result['pagination']
-
-    students_optimized = []
-    recorded_count = dao.count_recorded_students(
-        teacher_id=teacher_id,
-        date_filter=selected_date_str
+    students_view = dao.build_student_view(
+        result['students'],
+        result['records_by_student']
     )
-    for s in students:
-        record = records_by_student.get(s.id)
-        current_record = {}
 
-        if record:
-            current_record = {
-                'weight': record.weight,
-                'temp': record.bodyTemperature,
-                'note': record.note
-            }
-
-        students_optimized.append({
-            'id': s.id,
-            'name': f"{s.lastName} {s.firstName}",
-            'current_record': current_record
-        })
-
-    total = pagination.total
-    progress_stats = {
-        'completed': recorded_count,
-        'total': total,
-        'percentage': (recorded_count / total * 100) if total else 0
-    }
+    progress_stats = dao.build_health_progress_stats(
+        teacher_id=teacher_id,
+        date=selected_date,
+        total_students=teacher_class_info[1]
+    )
 
     return render_template(
         "health-management.html",
-        students=students_optimized,
-        today=today_str,
+        students=students_view,
+        today=date.today().isoformat(),
         selected_date=selected_date_str,
         progress_stats=progress_stats,
-        pagination=pagination
+        pagination=result['pagination']
     )
 
 @app.route('/health-management', methods=["POST"])

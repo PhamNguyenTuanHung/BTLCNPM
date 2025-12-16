@@ -25,7 +25,7 @@ with app.app_context():
         configs = [
             SystemConfig(key='tuition', value=5000000, note='Học phí (VND)'),
             SystemConfig(key='mealFee', value=50000, note='Tiền ăn/ngày (VND)'),
-            SystemConfig(key='maxNumber', value=40, note='Sĩ số tối đa')
+            SystemConfig(key='maxNumber', value=25, note='Sĩ số tối đa')
         ]
         db.session.add_all(configs)
         db.session.commit()
@@ -70,7 +70,7 @@ with app.app_context():
     # ================== LỚP ==================
     class1 = Class(
         name='Lớp Lá 1',
-        numberStudent=30,
+        numberStudent=20,
         semester=1,
         fromYear=2024,
         toYear=2025,
@@ -79,14 +79,23 @@ with app.app_context():
 
     class2 = Class(
         name='Lớp Chồi 2',
-        numberStudent=30,
+        numberStudent=25,
         semester=1,
         fromYear=2024,
         toYear=2025,
         teacher_id=teacher2.id
     )
 
-    db.session.add_all([class1, class2])
+    class3 = Class(
+        name='Lớp Chồi 3',
+        numberStudent=23,
+        semester=1,
+        fromYear=2024,
+        toYear=2025,
+        teacher_id=teacher2.id
+    )
+
+    db.session.add_all([class1, class2,class3])
     db.session.commit()
 
     # ================== HỌC SINH ==================
@@ -112,7 +121,7 @@ with app.app_context():
             )
         return students
 
-    students = create_students(class1.id, 30) + create_students(class2.id, 30)
+    students = create_students(class1.id, 20) + create_students(class2.id, 25) + create_students(class3.id, 23)
     db.session.add_all(students)
     db.session.commit()
 
@@ -157,25 +166,26 @@ with app.app_context():
             if d.weekday() == 6 or d >= today:
                 continue
 
-            ate_today = random.random() < 0.8  # 90% xác suất có ăn
+            # 80% xác suất có ăn
+            ate_today = random.random() < 0.8
             if ate_today:
                 meal_records.append(
                     MealAttendance(
                         student_id=s.id,
-                        date=d,
-                        hasMeal=True,
-                        teacher_id=s.class_.teacher_id
+                        attendance_date=datetime.combine(d, datetime.min.time()),
+                        created_by=s.class_.teacher_id,
+                        note=None
                     )
                 )
+                count += 1
 
-            count += 1
             if count >= meal_days_target:
                 break
 
     db.session.add_all(meal_records)
     db.session.commit()
-
     print("✅ Đã tạo MealAttendance")
+
 
     # ================== INVOICE ==================
     invoices = []
@@ -212,5 +222,5 @@ with app.app_context():
     print("✅ Đã tạo Invoice tháng", month, "/", year)
 
     print("\n🎉 HOÀN TẤT SEED FULL DATABASE")
-    print("👩‍🏫 2 giáo viên | 🏫 2 lớp | 👶 60 học sinh")
+    print("👩1 admin|‍🏫 3 giáo viên | 🏫 3 lớp | 👶 68 học sinh")
     print("🩺 HealthRecord | 💰 Invoice | ⚙ SystemConfig")
