@@ -80,3 +80,5 @@ def get_average_weight_chart_data(all_health_records):
     """[DEPRECATED] Đã chuyển sang dao.get_average_weight_chart_data."""
     from QuanLyHocSinh import dao
     return dao.get_average_weight_chart_data(all_health_records)
+
+from QuanLyHocSinh.model import SystemConfig

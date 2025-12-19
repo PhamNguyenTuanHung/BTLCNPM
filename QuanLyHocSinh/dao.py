@@ -54,18 +54,28 @@ def add_user(name, username, password, **kwargs):
 def get_system_config(key, default=None):
     """
     Lấy giá trị cấu hình hệ thống theo key
-    
+
     Args:
         key: Tên key cấu hình (vd: 'tuition', 'maxNumber', 'mealFee')
         default: Giá trị mặc định nếu không tìm thấy
-    
+
     Returns:
         Giá trị cấu hình hoặc giá trị mặc định
     """
     config = SystemConfig.query.filter_by(key=key, active=True).first()
-    if config:
-        return float(config.value)
-    return default
+    if not config or config.value is None:
+        return default
+
+    value = config.value
+
+    # Nếu default có kiểu → ép theo kiểu đó
+    if default is not None:
+        try:
+            return type(default)(value)
+        except ValueError:
+            return default
+
+    return value
 
 
 # ==================== STUDENT FUNCTIONS ====================
@@ -102,8 +112,6 @@ def load_students(class_id=None, kw=None, page=1, page_size=10):
         "has_next": pagination.has_next,
         "has_prev": pagination.has_prev
     }
-
-
 
 
 def count_students(class_id=None):
@@ -192,11 +200,13 @@ def update_student(student_id, student_data):
         print(f"Error updating student: {e}")
         return None
 
+
 def calc_age(birthday):
     today = date.today()
     return today.year - birthday.year - (
-        (today.month, today.day) < (birthday.month, birthday.day)
+            (today.month, today.day) < (birthday.month, birthday.day)
     )
+
 
 def delete_student(student_id):
     """
@@ -207,13 +217,14 @@ def delete_student(student_id):
     ultils.save_students(students)
     return True
 
+
 def build_student_view(
-    students,
-    health_records=None,
-    include_age=False,
-    include_gender=False,
-    include_parent=False,
-    include_phone=False
+        students,
+        health_records=None,
+        include_age=False,
+        include_gender=False,
+        include_parent=False,
+        include_phone=False
 ):
     result = []
 
@@ -254,17 +265,20 @@ def build_student_view(
 # ==================== HEALTH RECORD FUNCTIONS ====================
 from sqlalchemy import or_
 
+
 def load_students_with_health(
-    teacher_id,
-    date_filter=None,
-    kw=None,
-    page=1,
-    page_size=10
+        teacher_id,
+        date_filter=None,
+        kw=None,
+        updated_status=None,  # new: "updated" / "not_updated"
+        page=1,
+        page_size=10
 ):
     """
     Lấy danh sách học sinh theo lớp giáo viên
-    + hồ sơ sức khỏe theo ngày
+    + hồ sơ sức khỏe theo ngày (date_filter)
     + tìm kiếm (kw)
+    + filter theo trạng thái đã cập nhật/not cập nhật
     + phân trang
     """
 
@@ -283,7 +297,8 @@ def load_students_with_health(
         query = query.filter(
             or_(
                 Student.firstName.ilike(keyword),
-                Student.lastName.ilike(keyword)
+                Student.lastName.ilike(keyword),
+                Student.parentName.ilike(keyword)
             )
         )
 
@@ -297,9 +312,11 @@ def load_students_with_health(
 
     students = pagination.items
 
-    # 🩺 Lấy health record theo ngày cho các student trong page
+    # 🩺 Lấy health record theo ngày
     records_by_student = {}
-    if date_filter and students:
+    updated_on_day = set()
+
+    if students and date_filter:
         student_ids = [s.id for s in students]
 
         records = (
@@ -313,12 +330,22 @@ def load_students_with_health(
         )
 
         records_by_student = {r.student_id: r for r in records}
+        updated_on_day = {r.student_id for r in records}
+
+        # 🔹 Filter theo updated_status
+        if updated_status == "updated":
+            students = [s for s in students if s.id in updated_on_day]
+        elif updated_status == "not_updated":
+            students = [s for s in students if s.id not in updated_on_day]
 
     return {
         'students': students,
         'records_by_student': records_by_student,
+        'updated_on_day': updated_on_day,
         'pagination': pagination
     }
+
+
 
 def get_today_health_records():
     today = date.today()
@@ -327,6 +354,7 @@ def get_today_health_records():
     ).all()
 
     return {r.student_id: r for r in records}
+
 
 def count_students_with_health_record(teacher_id, date):
     return (
@@ -345,6 +373,7 @@ def count_students_with_health_record(teacher_id, date):
         .count()
     )
 
+
 def build_health_progress_stats(teacher_id, date, total_students):
     recorded_count = count_students_with_health_record(
         teacher_id=teacher_id,
@@ -357,6 +386,7 @@ def build_health_progress_stats(teacher_id, date, total_students):
         'percentage': (recorded_count / total_students * 100)
         if total_students else 0
     }
+
 
 def build_health_student_view(students, records_by_student):
     result = []
@@ -379,6 +409,7 @@ def build_health_student_view(students, records_by_student):
         })
 
     return result
+
 
 def save_health_record(student_id, record_date, weight, temp, note):
     """
@@ -447,7 +478,10 @@ def update_meal_attendance(student_id, date, ate_today, teacher_id, commit=True)
 
     if commit:
         db.session.commit()
+
+
 from sqlalchemy import extract, func
+
 
 def count_meal_days(student_id, month, year):
     return db.session.query(func.count(MealAttendance.id)).filter(
@@ -456,45 +490,56 @@ def count_meal_days(student_id, month, year):
         extract('year', MealAttendance.attendance_date) == year
     ).scalar() or 0
 
+
 def is_ate_today(student_id, date):
     return db.session.query(MealAttendance.id).filter(
         MealAttendance.student_id == student_id,
         func.date(MealAttendance.attendance_date) == date
     ).first() is not None
 
+
 # ==================== FINANCIAL FUNCTIONS ====================
-def load_financial_records(month=None, year=None):
+def load_financial_records(month=None, year=None, status=None, keyword=None):
     """
     Tải danh sách hồ sơ tài chính (hóa đơn học phí)
+    status: None / "paid" / "unpaid"
+    keyword: tìm kiếm theo tên học sinh hoặc phụ huynh
     """
-
-    # Lấy cấu hình hệ thống
     base_tuition = get_system_config('tuition', default=500000)
     meal_cost_per_day = get_system_config('mealFee', default=50000)
 
-    query = (
-        db.session.query(Invoice, Student)
-        .join(Student, Student.id == Invoice.student_id)
-        .filter(Invoice.active == True)
-    )
+    query = db.session.query(Invoice, Student).join(Student, Student.id == Invoice.student_id).filter(Invoice.active == True)
 
-    # Nếu có lọc theo tháng / năm
     if month:
         query = query.filter(Invoice.month == month)
     if year:
         query = query.filter(Invoice.year == year)
 
+    # Lấy tất cả trước, sau đó filter keyword và status
     invoices = query.all()
-
     financial_records = []
 
     for inv, student in invoices:
         meal_days = count_meal_days(student.id, month, year)
-        tuition_fee = inv.tuition if inv.tuition is not None else base_tuition
-        meal_fee = inv.mealFee if inv.mealFee is not None else meal_cost_per_day
-
+        tuition_fee = inv.tuition or base_tuition
+        meal_fee = inv.mealFee or meal_cost_per_day
         total_meal_cost = meal_days * meal_fee
-        calculated_total = tuition_fee + total_meal_cost
+        total_amount = inv.total or (tuition_fee + total_meal_cost)
+        is_paid = inv.paymentDate is not None
+
+        # Filter trạng thái
+        if status == "paid" and not is_paid:
+            continue
+        if status == "unpaid" and is_paid:
+            continue
+
+        # Filter keyword (tên học sinh hoặc phụ huynh)
+        if keyword:
+            kw = keyword.lower()
+            student_name = f"{student.lastName} {student.firstName}".lower()
+            parent_name = (student.parentName or "").lower()
+            if kw not in student_name and kw not in parent_name:
+                continue
 
         financial_records.append({
             'invoice_id': inv.id,
@@ -507,12 +552,14 @@ def load_financial_records(month=None, year=None):
             'meal_days': meal_days,
             'meal_fee_per_day': meal_fee,
             'total_meal_cost': total_meal_cost,
-            'total_amount': inv.total if inv.total is not None else calculated_total,
-            'is_paid': inv.paymentDate is not None,
+            'total_amount': total_amount,
+            'is_paid': is_paid,
             'payment_date': inv.paymentDate
         })
 
     return financial_records
+
+
 
 def is_invoice_paid(student_id, month, year):
     invoice = Invoice.query.filter_by(
@@ -526,6 +573,7 @@ def is_invoice_paid(student_id, month, year):
         return False
 
     return invoice.paymentDate is not None
+
 
 def update_invoice_payment(student_id, month, year):
     invoice = Invoice.query.filter_by(
@@ -544,6 +592,7 @@ def update_invoice_payment(student_id, month, year):
     invoice.paymentDate = datetime.utcnow()
     db.session.commit()
     return True
+
 
 def pay_invoice(invoice_id):
     """
@@ -573,6 +622,7 @@ def pay_invoice(invoice_id):
         'success': True,
         'message': 'Thanh toán hóa đơn thành công'
     }, 200
+
 
 def generate_monthly_invoices(tuition, meal_fee):
     now = datetime.now()
@@ -607,6 +657,7 @@ def generate_monthly_invoices(tuition, meal_fee):
 
     db.session.commit()
 
+
 def get_invoice_data(invoice_id):
     invoice = Invoice.query.get(invoice_id)
 
@@ -620,7 +671,7 @@ def get_invoice_data(invoice_id):
     invoice.mealFee = invoice.mealFee or 0
     invoice.mealDays = invoice.mealDays or 0
     invoice.total = invoice.total or (
-        invoice.tuition + invoice.mealFee
+            invoice.tuition + invoice.mealFee
     )
 
     return {
@@ -637,6 +688,7 @@ def load_classes():
     # Có thể lấy từ database hoặc JSON tùy theo thiết kế
     return Class.query.filter(Class.active == True).all()
 
+
 def get_teacher_class_info(teacher_id):
     teacher_class = get_class_by_teacher_id(teacher_id=teacher_id)
 
@@ -646,17 +698,20 @@ def get_teacher_class_info(teacher_id):
     current_count = get_current_student_count(class_id=teacher_class.id)
     return teacher_class.id, current_count
 
+
 def get_class_by_teacher_id(teacher_id):
     """
     Lấy thông tin lớp theo id giáo viên
     """
     return Class.query.filter(Class.teacher_id == teacher_id).first()
 
+
 def get_class_by_id(class_id):
     """
     Lấy thông tin lớp theo ID
     """
     return Class.query.get(class_id)
+
 
 def get_current_student_count(class_id):
     return Student.query.filter(
@@ -875,5 +930,3 @@ def get_average_weight_chart_data(all_health_records):
         'data': data,
         'title': "Cân nặng trung bình"
     }
-
-

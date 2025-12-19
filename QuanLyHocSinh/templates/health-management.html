@@ -9,15 +9,10 @@
     <div class="control-panel-new">
         <div class="control-header-new">
             <div>
-                <h2 class="current-date-display">{{ selected_date }}</h2>
-                <p class="subtitle">Ghi nhận sức khỏe cho trẻ trong lớp</p>
+                <h1 >Ghi nhận sức khỏe cho trẻ trong lớp</h1>
             </div>
         </div>
-        <div class="date-picker" style="margin-top: 1rem;">
-            <label for="record-date">Chọn ngày:</label>
-            <input type="date" id="record-date"
-                   value="{{ selected_date }}">
-        </div>
+
 
         <div class="progress-section">
             <p class="progress-text">Tiến độ ghi nhận</p>
@@ -35,15 +30,42 @@
             </span>
         </div>
         <div class="search-box">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                 class="icon-search">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.3-4.3"></path>
-            </svg>
-            <input type="text" id="search-input" placeholder="Tìm kiếm theo tên trẻ hoặc phụ huynh..."
-                   class="search-input"
-                   value="{{ request.args.get('keyword', '') }}">
+            <form method="get" class="filter-controls">
+
+
+
+                <!-- Khối 2: Chọn ngày -->
+                <div class="filter-block">
+                    <label for="record-date">Chọn ngày:</label>
+                    <input type="date" id="record-date"
+                           name="date"
+                           value="{{ selected_date }}"
+                           class="date-input">
+                </div>
+                 <!-- Khối 1: Tìm kiếm keyword -->
+                <div class="filter-block">
+                    <input type="text" id="keyword" name="keyword"
+                           placeholder="Tên trẻ hoặc phụ huynh"
+                           value="{{ keyword }}"
+                           class="search-input">
+                </div>
+
+                <!-- Khối 3: Trạng thái cập nhật -->
+                <div class="filter-block">
+                    <select name="updated_status" id="updated_status" class="filter-select"
+                            onchange="this.form.submit()">
+                        <option value="" {% if not updated_status %}selected{% endif %}>Tất cả</option>
+                        <option value="updated" {% if updated_status=='updated' %}selected{% endif %}>Đã cập nhật
+                        </option>
+                        <option value="not_updated" {% if updated_status=='not_updated' %}selected{% endif %}>Chưa cập
+                            nhật
+                        </option>
+                    </select>
+                </div>
+
+            </form>
+
+
         </div>
     </div>
 
@@ -130,20 +152,25 @@
         Nhiệt độ ≥ 37.5°C sẽ được đánh dấu cảnh báo.
     </p>
     <div class="pagination">
+        {% set keyword = request.args.get('keyword','') %}
+        {% set updated_status = request.args.get('updated_status','') %}
+        {% set date = selected_date %} {# bạn đã truyền selected_date từ route #}
+
         {% if pagination.has_prev %}
-        <a href="?page={{ pagination.prev_num }}">«</a>
+        <a href="?page={{ pagination.prev_num }}&keyword={{ keyword }}&date={{ date }}&updated_status={{ updated_status }}">«</a>
         {% endif %}
 
         {% for p in range(1, pagination.pages + 1) %}
-        <a href="?page={{ p }}&keyword={{ request.args.get('keyword','') }}&date={{ selected_date }}"
+        <a href="?page={{ p }}&keyword={{ keyword }}&date={{ date }}&updated_status={{ updated_status }}"
            class="{{ 'active' if p == pagination.page else '' }}">
             {{ p }}
         </a>
         {% endfor %}
 
         {% if pagination.has_next %}
-        <a href="?page={{ pagination.next_num }}">»</a>
+        <a href="?page={{ pagination.next_num }}&keyword={{ keyword }}&date={{ date }}&updated_status={{ updated_status }}">»</a>
         {% endif %}
+
     </div>
 
 </div>
@@ -242,21 +269,38 @@
     }
 
     const searchInput = document.getElementById("search-input");
+    if (searchInput) {
+        searchInput.addEventListener("keydown", (e) => {
+            if (e.key !== "Enter") return;
 
-    searchInput.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter") return;
+            const keyword = searchInput.value.trim();
+            const params = new URLSearchParams(window.location.search);
 
-        const keyword = searchInput.value.trim();
-        const params = new URLSearchParams(window.location.search);
+            // Lấy dropdown trạng thái đã cập nhật
+            const statusEl = document.getElementById("updated_status");
+            if (statusEl) {
+                const status = statusEl.value;
+                if (status) params.set("updated_status", status);
+                else params.delete("updated_status");
+            }
 
-        params.set("keyword", keyword);
-        params.set("page", 1);
+            params.set("keyword", keyword);
+            params.set("page", 1);
 
-        const date = document.querySelector('input[name="date"]')?.value;
-        if (date) params.set("date", date);
+            // Lấy ngày
+            const dateEl = document.getElementById('record-date');
+            if (dateEl) {
+                const date = dateEl.value;
+                if (date) params.set("date", date);
+                else params.delete("date");
+            }
 
-        window.location.href = `/health-management?${params.toString()}`;
-    });
+            // Chuyển hướng
+            window.location.href = `/health-management?${params.toString()}`;
+        });
+    }
+
+    const filterStatus = document.getElementById('')
 
     document.getElementById('record-date').addEventListener('change', (e) => {
         const newDate = e.target.value;

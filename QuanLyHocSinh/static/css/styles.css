@@ -541,10 +541,35 @@ h2 {
     cursor: pointer;
 }
 
+.modal-content .student-card {
+    cursor: default;
+    transform: none;
+}
+
+.modal-content .student-card:hover {
+    transform: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+
+.modal-content .health-input,
+.modal-content input[type="text"] {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-border);
+    font-size: 0.95rem;
+    background-color: var(--color-white);
+}
+
+
 .student-card:hover {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     transform: translateY(-4px); /* Thêm hiệu ứng nâng nhẹ */
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12); /* Shadow đậm hơn khi hover */
+}
+
+.student-card.fever {
+    border: 2px solid #ef4444;
 }
 
 /* Card Header */
@@ -1508,3 +1533,72 @@ h2 {
 
 
 
+/* Container filter */
+.filter-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+/* Search input */
+.filter-controls .search-input {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db; /* gray-300 */
+    border-radius: 0.375rem; /* rounded-md */
+    font-size: 0.95rem;
+    width: 500px;
+    transition: border-color 0.2s;
+}
+
+.filter-controls .search-input:focus {
+    border-color: #6366f1; /* purple-500 */
+    outline: none;
+}
+
+/* Dropdown select */
+.filter-controls .filter-select {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.95rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    background-color: #fff;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.filter-controls .filter-select:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    outline: none;
+}
+
+
+.date-input {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.95rem;
+    border: 1px solid #ccc;
+    border-radius: 0.5rem;
+    background-color: #fff;
+    transition: all 0.2s;
+}
+
+/* Hover và focus */
+.date-input:hover {
+    border-color: #888;
+}
+
+.date-input:focus {
+    border-color: #059669;
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2);
+    outline: none;
+}
+
+/* Responsive: nếu cần form ngang */
+.filter-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+}

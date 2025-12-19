@@ -1,13 +1,18 @@
 # admin.py - Flask-Admin Configuration
 # Cấu hình giao diện quản trị cho dự án Quản lý học sinh
 
+from flask import redirect
 from flask_admin import Admin, AdminIndexView, BaseView, expose
 from flask_admin.contrib.sqla import ModelView
 from flask_login import current_user, logout_user
-from flask import redirect
+from markupsafe import Markup
+from sqlalchemy import or_
+from wtforms.validators import ValidationError
 
-from QuanLyHocSinh.model import User, Student, Class, HealthRecord, Invoice, SystemConfig, UserRole
-from QuanLyHocSinh import db, app, dao
+from QuanLyHocSinh import dao
+from QuanLyHocSinh import db, app
+from QuanLyHocSinh.model import Student
+from QuanLyHocSinh.model import User, Class, HealthRecord, Invoice, SystemConfig, UserRole
 
 
 # ==================== BASE ADMIN VIEW ====================
@@ -15,8 +20,10 @@ class AuthenticatedModelView(ModelView):
     """
     Base view yêu cầu xác thực và quyền ADMIN
     """
+
     def is_accessible(self):
-        print(f"[DEBUG] is_accessible called. is_authenticated: {current_user.is_authenticated}, user: {current_user}, role: {current_user.user_role if current_user.is_authenticated else 'N/A'}")
+        print(
+            f"[DEBUG] is_accessible called. is_authenticated: {current_user.is_authenticated}, user: {current_user}, role: {current_user.user_role if current_user.is_authenticated else 'N/A'}")
         return current_user.is_authenticated and current_user.user_role == UserRole.ADMIN
 
     def inaccessible_callback(self, name, **kwargs):
@@ -46,34 +53,34 @@ class UserView(AuthenticatedModelView):
     }
     can_export = True
     page_size = 20
-    
+
     # Không cho phép xóa user
     can_delete = False
-    
+
     # Ẩn password trong danh sách, nhưng HIỂN THỊ trong form
     column_exclude_list = ['password']
     form_excluded_columns = ['classes', 'invoices']
-    
+
     # Override password field để dùng PasswordField
     from wtforms import PasswordField
     form_overrides = {
         'password': PasswordField
     }
-    
+
     # Password không bắt buộc khi edit, chỉ bắt buộc khi create
     form_args = {
         'password': {
             'validators': []  # Bỏ required validator
         }
     }
-    
+
     def on_model_change(self, form, model, is_created):
         """
         Được gọi trước khi lưu model.
         Hash password nếu có thay đổi.
         """
         import hashlib
-        
+
         # Kiểm tra nếu form có trường password (không có khi inline edit)
         if hasattr(form, 'password') and form.password.data:
             # Hash password với MD5 (giống như logic hiện tại)
@@ -85,100 +92,69 @@ class UserView(AuthenticatedModelView):
 
 
 # ==================== CLASS MANAGEMENT VIEW ====================
-class ClassView(AuthenticatedModelView):
-    """
-    Quản lý lớp học
-    """
-    column_list = ['id', 'name', 'numberStudent', 'max_capacity', 'semester', 'fromYear', 'toYear', 'teacher']
+
+
+class ClassView(ModelView):
+    column_list = [
+        'id', 'name', 'numberStudent', 'max_capacity',
+        'semester', 'fromYear', 'toYear', 'teacher'
+    ]
     column_searchable_list = ['name']
     column_filters = ['semester', 'fromYear', 'toYear', 'teacher_id']
-    column_editable_list = []  # Không cho phép edit inline
-    column_labels = {
-        'id': 'ID',
-        'name': 'Tên lớp',
-        'numberStudent': 'Sĩ số hiện tại',
-        'max_capacity': 'Sĩ số tối đa',
-        'semester': 'Học kỳ',
-        'fromYear': 'Năm bắt đầu',
-        'toYear': 'Năm kết thúc',
-        'teacher': 'Giáo viên chủ nhiệm',
-        'teacher_id': 'ID Giáo viên'
-    }
+    column_editable_list = []
     can_export = True
     page_size = 20
-    
-    # Thêm cột virtual cho sĩ số tối đa
-    column_extra_row_actions = None
-    
-    # Custom formatters
+    form_excluded_columns = ['invoices']
+    form_columns = [
+        'name', 'semester', 'fromYear', 'toYear', 'active', 'teacher', 'students'
+    ]
+
+    # ---------------- FORMATTERS ----------------
     def _current_student_count_formatter(view, context, model, name):
-        """Hiển thị số học sinh hiện tại"""
-        return len(model.students)
-    
+        return len(model.students) if model.students else 0
+
     def _max_capacity_formatter(view, context, model, name):
-        """Hiển thị sĩ số tối đa từ SystemConfig"""
-        from QuanLyHocSinh import dao
-        max_cap = int(dao.get_system_config('SI_SO', default=40))
-        current = len(model.students)
-        
-        # Tô màu nếu vượt quá
+        max_cap = int(dao.get_system_config('maxNumber', default=40))
+        current = len(model.students) if model.students else 0
+
         if current > max_cap:
-            return f'<span style="color: red; font-weight: bold;">{max_cap} (Vượt quá!)</span>'
+            return Markup(f'<span style="color:red;font-weight:bold;">{current}/{max_cap} (Vượt quá!)</span>')
         elif current == max_cap:
-            return f'<span style="color: orange;">{max_cap} (Đã đủ)</span>'
+            return Markup(f'<span style="color:orange;font-weight:bold;">{current}/{max_cap} (Đã đủ)</span>')
         else:
-            return f'{max_cap}'
-    
+            return Markup(f'<span style="color:green;">{current}/{max_cap}</span>')
+
     column_formatters = {
         'numberStudent': _current_student_count_formatter,
         'max_capacity': _max_capacity_formatter
     }
-    
-    # Chỉ exclude invoices, giữ students để hiển thị dropdown
-    form_excluded_columns = ['invoices']
-    
-    # Sắp xếp thứ tự các trường, students xuống cuối
-    # Bỏ numberStudent vì tự động tính
-    form_columns = [
-        'name',
-        'semester',
-        'fromYear',
-        'toYear',
-        'active',
-        'teacher',
-        'students'  # Xuống cuối cùng
-    ]
-    
+
+    # ---------------- FORM ----------------
+    def edit_form(self, obj=None):
+        form = super().edit_form(obj)
+        # Chỉ lấy HS chưa có lớp hoặc đang ở lớp này
+        form.students.query = Student.query.filter(
+            or_(Student.class_id == None, Student.class_id == obj.id)
+        )
+        return form
+
+    def create_form(self):
+        form = super().create_form()
+        form.students.query = Student.query.filter(Student.class_id == None)
+        return form
+
+    # ---------------- VALIDATION ----------------
     def on_model_change(self, form, model, is_created):
-        """
-        Tự động cập nhật numberStudent và kiểm tra sĩ số tối đa
-        """
-        from QuanLyHocSinh import dao
-        from wtforms.validators import ValidationError
-        
-        # Lấy sĩ số tối đa từ SystemConfig
-        max_capacity = int(dao.get_system_config('SI_SO', default=40))
-        
-        # Đếm số học sinh sẽ có sau khi save
-        if hasattr(form, 'students') and form.students.data:
-            new_student_count = len(form.students.data)
-        else:
-            new_student_count = 0
-        
-        # Kiểm tra vượt quá sĩ số tối đa
-        if new_student_count > max_capacity:
+        max_capacity = int(dao.get_system_config('maxNumber', default=40))
+        new_count = len(form.students.data) if form.students.data else 0
+
+        if new_count > max_capacity:
             raise ValidationError(
-                f'Không thể thêm học sinh! '
-                f'Sĩ số hiện tại ({new_student_count}) vượt quá sĩ số tối đa ({max_capacity}). '
-                f'Vui lòng xóa bớt học sinh hoặc tăng sĩ số tối đa trong cấu hình hệ thống.'
+                f'Sĩ số lớp ({new_count}) vượt quá giới hạn ({max_capacity}). '
+                'Vui lòng giảm số học sinh hoặc tăng giới hạn trong cấu hình.'
             )
-        
-        # Cập nhật numberStudent
-        if not is_created:
-            model.numberStudent = len(model.students)
-        else:
-            # Khi tạo mới, set = số học sinh được chọn
-            model.numberStudent = new_student_count
+
+        model.numberStudent = new_count
 
 
 # ==================== STUDENT MANAGEMENT VIEW ====================
@@ -186,7 +162,8 @@ class StudentView(AuthenticatedModelView):
     """
     Quản lý học sinh
     """
-    column_list = ['id', 'firstName', 'lastName', 'birthday', 'gender', 'parentName', 'parentPhone', 'guardianRelationship', 'class_']
+    column_list = ['id', 'firstName', 'lastName', 'birthday', 'gender', 'parentName', 'parentPhone',
+                   'guardianRelationship', 'class_']
     column_searchable_list = ['firstName', 'lastName', 'parentName', 'parentPhone']
     column_filters = ['gender', 'class_id', 'birthday']
     column_editable_list = ['parentPhone']
@@ -204,41 +181,41 @@ class StudentView(AuthenticatedModelView):
     }
     can_export = True
     page_size = 30
-    
+
     # Cấu hình form
     form_excluded_columns = ['health_records', 'invoices']
-    
+
     # Cho phép class_id nullable (có thể thêm lớp sau)
     form_args = {
         'class_id': {
             'validators': []  # Bỏ required validator
         }
     }
-    
+
     # Custom formatter cho cột giới tính
     def _gender_formatter(view, context, model, name):
         return 'Nam' if model.gender else 'Nữ'
-    
+
     # Custom formatter cho cột ngày sinh - hiển thị dd/mm/yyyy
     def _birthday_formatter(view, context, model, name):
         from QuanLyHocSinh.utils import format_date_display
         return format_date_display(model.birthday)
-    
+
     column_formatters = {
         'gender': _gender_formatter,
         'birthday': _birthday_formatter
     }
-    
+
     # Override form fields
     from wtforms import RadioField, SelectField, StringField
     from wtforms.validators import DataRequired, Regexp
-    
+
     form_overrides = {
         'gender': RadioField,
         'guardianRelationship': SelectField,
         'birthday': StringField  # Dùng StringField thay vì DateField để tự validate
     }
-    
+
     # Cấu hình choices và format cho các field
     form_args = {
         'class_id': {
@@ -274,36 +251,36 @@ class StudentView(AuthenticatedModelView):
             'validate_choice': False  # Cho phép nhập giá trị không có trong danh sách
         }
     }
-    
+
     # Load custom CSS để hiển thị gender radio buttons theo hàng ngang
     extra_css = ['/static/admin/custom.css']
-    
+
     def on_model_change(self, form, model, is_created):
         """
         Convert birthday string (dd/mm/yyyy) to datetime object before saving
         """
         from QuanLyHocSinh.utils import parse_date_input
-        
+
         # Convert birthday từ string sang datetime
         if hasattr(form, 'birthday') and form.birthday.data:
             if isinstance(form.birthday.data, str):
                 model.birthday = parse_date_input(form.birthday.data)
-        
+
         super(StudentView, self).on_model_change(form, model, is_created)
-    
+
     def after_model_change(self, form, model, is_created):
         """
         Tự động tạo bản ghi sức khỏe ban đầu khi tạo học sinh mới
         Method này được gọi SAU KHI student đã được commit, nên model.id đã có giá trị
         """
         super(StudentView, self).after_model_change(form, model, is_created)
-        
+
         if is_created:
             # Tạo HealthRecord ban đầu cho học sinh mới
             from QuanLyHocSinh.model import HealthRecord
             from QuanLyHocSinh import db
             from datetime import datetime
-            
+
             initial_health_record = HealthRecord(
                 weight=0.0,
                 bodyTemperature=36.5,
@@ -321,30 +298,30 @@ class HealthRecordView(AuthenticatedModelView):
     """
     Quản lý hồ sơ sức khỏe
     """
-    column_list = ['id', 'student', 'weight', 'bodyTemperature', 'recordingDate', 'feverWarning', 'note']
+    column_list = ['id', 'student.id', 'student', 'weight', 'bodyTemperature', 'recordingDate', 'feverWarning', 'note']
     column_searchable_list = ['note']
-    column_filters = ['recordingDate', 'feverWarning', 'student_id']
+    column_filters = ['recordingDate', 'feverWarning', 'student_id', 'student']
     column_labels = {
-        'id': 'ID',
+        'id': 'Mã bản ghi',
+        'student.id': 'Mã học sinh',
         'student': 'Học sinh',
         'weight': 'Cân nặng (kg)',
         'bodyTemperature': 'Nhiệt độ (°C)',
         'recordingDate': 'Ngày ghi nhận',
         'feverWarning': 'Cảnh báo sốt',
         'note': 'Ghi chú',
-        'student_id': 'ID Học sinh'
     }
     can_export = True
-    page_size = 50
-    
+    page_size = 25
+
     # Sắp xếp theo ngày mới nhất
     column_default_sort = ('recordingDate', True)
-    
+
     # Custom formatter cho recordingDate
     def _recording_date_formatter(view, context, model, name):
         from QuanLyHocSinh.utils import format_datetime_display
         return format_datetime_display(model.recordingDate)
-    
+
     column_formatters = {
         'recordingDate': _recording_date_formatter
     }
@@ -373,21 +350,21 @@ class InvoiceView(AuthenticatedModelView):
     }
     can_export = True
     page_size = 30
-    
+
     # Custom formatters cho datetime fields
     def _payment_date_formatter(view, context, model, name):
         from QuanLyHocSinh.utils import format_datetime_display
         return format_datetime_display(model.paymentDate)
-    
+
     def _created_at_formatter(view, context, model, name):
         from QuanLyHocSinh.utils import format_datetime_display
         return format_datetime_display(model.createdAt)
-    
+
     column_formatters = {
         'paymentDate': _payment_date_formatter,
         'createdAt': _created_at_formatter
     }
-    
+
     # Sắp xếp theo ngày tạo mới nhất
     column_default_sort = ('createdAt', True)
 
@@ -410,7 +387,7 @@ class SystemConfigView(AuthenticatedModelView):
     }
     can_export = True
     page_size = 20
-    
+
     # Sắp xếp theo key
     column_default_sort = ('key', False)
 
@@ -420,6 +397,7 @@ class StatsView(BaseView):
     """
     Trang thống kê và báo cáo
     """
+
     @expose('/')
     def index(self):
         # Lấy dữ liệu thống kê từ dao
@@ -428,7 +406,7 @@ class StatsView(BaseView):
             'total_classes': 0,  # Sẽ implement sau
             'revenue_stats': {}  # Sẽ implement sau
         }
-        
+
         return self.render('admin/stats.html', **stats_data)
 
     def is_accessible(self):
@@ -443,6 +421,7 @@ class LogoutView(BaseView):
     """
     Đăng xuất khỏi admin panel
     """
+
     @expose('/')
     def index(self):
         logout_user()
@@ -457,6 +436,7 @@ class MyAdminIndexView(AdminIndexView):
     """
     Trang chủ của admin panel
     """
+
     @expose('/')
     def index(self):
         # Thống kê tổng quan
@@ -466,7 +446,7 @@ class MyAdminIndexView(AdminIndexView):
             'total_teachers': 0,
             'total_revenue': 0
         }
-        
+
         # Đếm từ database nếu có thể
         try:
             overview_stats['total_students'] = Student.query.count()
@@ -475,7 +455,7 @@ class MyAdminIndexView(AdminIndexView):
             overview_stats['total_revenue'] = db.session.query(db.func.sum(Invoice.total)).scalar() or 0
         except:
             pass
-        
+
         return self.render('admin/index.html', stats=overview_stats)
 
     def is_accessible(self):

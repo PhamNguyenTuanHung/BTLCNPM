@@ -184,6 +184,7 @@ def health_management():
     today = date.today()
     today_str = today.isoformat()
 
+    # Lấy ngày từ query param
     date_str = request.args.get('date')
     selected_date = today
     if date_str:
@@ -191,23 +192,26 @@ def health_management():
             selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
             pass
-
     selected_date_str = selected_date.isoformat()
+
+    # Lấy các filter khác
     page = request.args.get('page', 1, type=int)
     keyword = request.args.get('keyword', '')
+    updated_status = request.args.get('updated_status')  # "updated" / "not_updated" / None
 
     teacher_id = current_user.id
-
     teacher_class_info = dao.get_teacher_class_info(teacher_id)
-    print(teacher_class_info[1])
 
+    # Load dữ liệu học sinh với filter trạng thái
     result = dao.load_students_with_health(
         teacher_id=teacher_id,
-        date_filter=selected_date_str,
+        date_filter=selected_date,
         page=page,
         kw=keyword,
+        updated_status=updated_status,  # thêm filter
         page_size=10
     )
+
     students_view = dao.build_student_view(
         result['students'],
         result['records_by_student']
@@ -222,11 +226,14 @@ def health_management():
     return render_template(
         "health-management.html",
         students=students_view,
-        today=date.today().isoformat(),
+        today=today_str,
         selected_date=selected_date_str,
+        updated_status=updated_status,   # truyền vào template để đánh dấu dropdown
+        keyword=keyword,
         progress_stats=progress_stats,
         pagination=result['pagination']
     )
+
 
 @app.route('/health-management', methods=["POST"])
 @login_required
@@ -345,33 +352,34 @@ def save_meal_attendance():
 # ==================== TUITION MANAGEMENT ROUTES ====================
 @app.route('/tuition')
 def tuition():
-    """
-    Trang quản lý học phí
-    """
     today_str = date.today().isoformat()
-
-    # Lấy cấu hình hệ thống (học phí cơ bản, tiền ăn, sĩ số tối đa)
     base_tuition = dao.get_system_config('tuition', default=3000000)
     meal_cost_per_day = dao.get_system_config('mealFee', default=50000)
 
     today = date.today()
     month = today.month
     year = today.year
-    invoices = dao.load_financial_records(month=month, year=year)
+
+    status = request.args.get('status')       # "paid" / "unpaid"
+    keyword = request.args.get('keyword')     # search input
+
+    invoices = dao.load_financial_records(month=month, year=year, status=status, keyword=keyword)
 
     return render_template(
         "tuition.html",
         invoices=invoices,
         today=today_str,
         base_meal_cost=meal_cost_per_day,
-        base_tuition=base_tuition
+        base_tuition=base_tuition,
+        selected_status=status,
+        keyword=keyword
     )
+
 
 # ==================== INVOICE ROUTES ====================
 @app.route('/invoice/<int:invoice_id>')
 def invoice(invoice_id):
     data = dao.get_invoice_data(invoice_id)
-    print(data.get('invoice'))
     if not data:
         abort(404)
 

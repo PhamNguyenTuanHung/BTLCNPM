@@ -34,6 +34,18 @@
     {# 📊 2. CHI TIẾT BẢNG DỮ LIỆU #}
     <div class="content-card full-width">
         <h3>Chi tiết Bữa ăn & Học phí</h3>
+        <form method="get" class="filter-controls">
+            <input type="text" name="keyword" placeholder="Tìm kiếm theo tên trẻ hoặc phụ huynh..."
+                   value="{{ keyword }}" class="search-input">
+
+            <select name="status" class="filter-select" onchange="this.form.submit()">
+                <option value="" {% if not selected_status %}selected{% endif %}>Tất cả</option>
+                <option value="paid" {% if selected_status=='paid' %}selected{% endif %}>Đã đóng</option>
+                <option value="unpaid" {% if selected_status=='unpaid' %}selected{% endif %}>Chưa đóng</option>
+            </select>
+
+        </form>
+
         <div class="meal-table-wrapper">
             <table class="data-table">
                 <thead>

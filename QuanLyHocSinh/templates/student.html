@@ -8,7 +8,7 @@
     <div class="control-panel">
         <div class="control-header">
             <div>
-                <h2>Danh sách trẻ em</h2>
+                <h2>Danh sách {{ current_class_name }}</h2>
                 <p class="student-count-text">
                     Hiện có
                     <span id="student-count" class="count-highlight">
@@ -16,15 +16,15 @@
                     </span> trẻ trong lớp
                 </p>
             </div>
-<!--            <button id="add-student-btn" class="btn-add-student">-->
-<!--                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"-->
-<!--                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"-->
-<!--                     class="icon-plus">-->
-<!--                    <path d="M5 12h14"></path>-->
-<!--                    <path d="M12 5v14"></path>-->
-<!--                </svg>-->
-<!--                Thêm trẻ mới-->
-<!--            </button>-->
+            <!--            <button id="add-student-btn" class="btn-add-student">-->
+            <!--                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"-->
+            <!--                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"-->
+            <!--                     class="icon-plus">-->
+            <!--                    <path d="M5 12h14"></path>-->
+            <!--                    <path d="M12 5v14"></path>-->
+            <!--                </svg>-->
+            <!--                Thêm trẻ mới-->
+            <!--            </button>-->
         </div>
 
         <div class="search-box">
@@ -44,7 +44,8 @@
     <div id="student-list" class="student-cards-grid">
         {% for student in students %}
         {% set record = student.current_record or {} %}
-        <div class="student-card" data-id="{{ student.id }}">
+        <div class="student-card {% if record.temp and record.temp|float >= 37.5 %}fever{% endif %}"
+            data-id="{{ student.id }}">
             <div class="card-header">
                 <div class="info-group">
                     <div class="avatar-wrapper {{ 'male' if student.gender == 'Nam' else 'female' }}">
@@ -145,58 +146,130 @@
     </div>
 
 
+    <!--    <div id="student-modal" class="modal-overlay">-->
+    <!--        <div class="modal-content">-->
+    <!--            <div class="modal-header">-->
+    <!--                <h3 id="modal-title">Cập nhật sức khỏe trẻ</h3>-->
+    <!--                <button class="btn-close-modal" id="close-modal-btn">&times;</button>-->
+    <!--            </div>-->
+
+    <!--            <form id="student-form">-->
+    <!--                <input type="hidden" id="student-id" name="id">-->
+
+    <!--                &lt;!&ndash; THÔNG TIN CÁ NHÂN (CHỈ XEM) &ndash;&gt;-->
+    <!--                <div class="form-group">-->
+    <!--                    <label for="student-name">Tên trẻ:</label>-->
+    <!--                    <input type="text" id="student-name" name="name" readonly>-->
+    <!--                </div>-->
+
+    <!--                <div class="form-group">-->
+    <!--                    <label for="student-gender">Giới tính:</label>-->
+    <!--                    <select id="student-gender" name="gender" disabled>-->
+    <!--                        <option value="Nam">Nam</option>-->
+    <!--                        <option value="Nữ">Nữ</option>-->
+    <!--                    </select>-->
+    <!--                </div>-->
+
+    <!--                <div class="form-group">-->
+    <!--                    <label for="student-parent">Phụ huynh:</label>-->
+    <!--                    <input type="text" id="student-parent" name="parent" readonly>-->
+    <!--                </div>-->
+
+    <!--                <div class="form-group">-->
+    <!--                    <label for="student-phone">Điện thoại:</label>-->
+    <!--                    <input type="tel" id="student-phone" name="phone" readonly>-->
+    <!--                </div>-->
+
+    <!--                &lt;!&ndash; SỨC KHỎE &ndash;&gt;-->
+    <!--                <h4>Thông tin sức khỏe:</h4>-->
+    <!--                <div class="form-row">-->
+    <!--                    <div class="form-group half-width">-->
+    <!--                        <label for="student-weight">Cân nặng (kg):</label>-->
+    <!--                        <input type="number" step="0.1" id="student-weight" name="weight">-->
+    <!--                    </div>-->
+
+    <!--                    <div class="form-group half-width">-->
+    <!--                        <label for="student-temp">Nhiệt độ (°C):</label>-->
+    <!--                        <input type="number" step="0.1" id="student-temp" name="temp">-->
+    <!--                    </div>-->
+    <!--                </div>-->
+
+    <!--                <div class="form-group">-->
+    <!--                    <label for="student-note">Ghi chú:</label>-->
+    <!--                    <input type="text" id="student-note" name="note">-->
+    <!--                </div>-->
+
+    <!--                <div class="modal-actions">-->
+    <!--                    <button type="submit" class="btn-save">Lưu thay đổi</button>-->
+    <!--                    <button type="button" class="btn-cancel" id="cancel-modal-btn">Hủy</button>-->
+    <!--                </div>-->
+    <!--            </form>-->
+    <!--        </div>-->
+    <!--    </div>-->
+
     <div id="student-modal" class="modal-overlay">
         <div class="modal-content">
+
             <div class="modal-header">
-                <h3 id="modal-title">Cập nhật sức khỏe sửa trẻ</h3>
+                <h3>Cập nhật sức khỏe</h3>
                 <button class="btn-close-modal" id="close-modal-btn">&times;</button>
             </div>
+
             <form id="student-form">
-                <input type="hidden" id="student-id" name="id">
+                <input type="hidden" id="student-id" name="student_id">
 
-                <div class="form-group">
-                    <label for="student-name">Tên trẻ:</label>
-                    <input type="text" id="student-name" name="name" required>
-                </div>
+                <!-- CARD CLONE -->
+                <div class="student-card ">
 
-                <div class="form-group">
-                    <label for="student-gender">Giới tính:</label>
-                    <select id="student-gender" name="gender" required>
-                        <option value="">-- Chọn giới tính --</option>
-                        <option value="Nam">Nam</option>
-                        <option value="Nữ">Nữ</option>
-                    </select>
-                </div>
+                    <div class="card-header">
+                        <div class="info-group">
+                            <div class="avatar-wrapper" id="modal-avatar"></div>
+                            <div>
+                                <p class="student-name" id="modal-name"></p>
+                                <p class="student-age" id="modal-age"></p>
+                            </div>
+                        </div>
 
-                <div class="form-group">
-                    <label for="student-parent">Phụ huynh:</label>
-                    <input type="text" id="student-parent" name="parent" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="student-phone">Điện thoại:</label>
-                    <input type="tel" id="student-phone" name="phone" required>
-                </div>
-
-                <h4>Thông tin sức khỏe:</h4>
-                <div class="form-row">
-                    <div class="form-group half-width">
-                        <label for="student-weight">Cân nặng (kg):</label>
-                        <input type="number" step="0.1" id="student-weight" name="weight">
-                    </div>
-                    <div class="form-group half-width">
-                        <label for="student-temp">Nhiệt độ (°C):</label>
-                        <input type="number" step="0.1" id="student-temp" name="temp">
+                        <span class="gender-tag" id="modal-gender"></span>
                     </div>
 
-                </div>
-                <div class="form-group">
-                    <label for="student-temp">Ghi chú:</label>
-                    <input type="text" id="student-note" name="note">
+                    <div class="parent-info">
+                        <p><span>Phụ huynh:</span> <span id="modal-parent"></span></p>
+                        <p><span>Điện thoại:</span> <span id="modal-phone"></span></p>
+                    </div>
+
+                    <div class="health-box">
+                        <div class="health-header">
+                            <span>Nhập sức khỏe</span>
+                        </div>
+
+                        <div class="health-details">
+
+                            <div>
+                                <p class="detail-label">Cân nặng (kg)</p>
+                                <input type="number" step="0.1"
+                                       id="student-weight" name="weight"
+                                       class="health-input">
+                            </div>
+
+                            <div>
+                                <p class="detail-label">Nhiệt độ (°C)</p>
+                                <input type="number" step="0.1"
+                                       id="student-temp" name="temp"
+                                       class="health-input">
+                            </div>
+
+                        </div>
+
+                        <div class="form-group">
+                            <label>Ghi chú</label>
+                            <input type="text" id="student-note" name="note">
+                        </div>
+                    </div>
                 </div>
 
                 <div class="modal-actions">
-                    <button type="submit" class="btn-save">Lưu thay đổi</button>
+                    <button type="submit" class="btn-save">Lưu</button>
                     <button type="button" class="btn-cancel" id="cancel-modal-btn">Hủy</button>
                 </div>
             </form>
