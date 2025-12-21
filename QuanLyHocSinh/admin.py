@@ -12,7 +12,8 @@ from wtforms.validators import ValidationError
 from QuanLyHocSinh import dao
 from QuanLyHocSinh import db, app
 from QuanLyHocSinh.model import Student
-from QuanLyHocSinh.model import User, Class, HealthRecord, Invoice, SystemConfig, UserRole
+from QuanLyHocSinh.model import User, Class, HealthRecord, Invoice, SystemConfig, UserRole, MealAttendance
+
 
 
 # ==================== BASE ADMIN VIEW ====================
@@ -20,6 +21,126 @@ class AuthenticatedModelView(ModelView):
     """
     Base view yêu cầu xác thực và quyền ADMIN
     """
+    
+    # Enable export with both CSV and custom XLSX
+    can_export = True
+    export_types = ['csv', 'xlsx']
+    
+    def _export_xlsx(self):
+        """
+        Custom Excel export handler với formatting đẹp
+        """
+        from flask import Response
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        from io import BytesIO
+        from datetime import datetime
+        
+        # Get current view data
+        count, query = self._get_list_filter_args()
+        
+        # Get columns to export  
+        export_columns = self.get_export_columns()
+        
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = self.name or "Export"
+        
+        # Define styles
+        # Header style
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        header_border = Border(
+            left=Side(style='thin', color="FFFFFF"),
+            right=Side(style='thin', color="FFFFFF"),
+            top=Side(style='thin', color="FFFFFF"),
+            bottom=Side(style='thin', color="FFFFFF")
+        )
+        
+        # Data cell border
+        data_border = Border(
+            left=Side(style='thin', color="D3D3D3"),
+            right=Side(style='thin', color="D3D3D3"),
+            top=Side(style='thin', color="D3D3D3"),
+            bottom=Side(style='thin', color="D3D3D3")
+        )
+        
+        # Alternating row colors
+        even_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+        odd_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+        
+        # Write headers
+        for col_idx, col_name in enumerate(export_columns, 1):
+            cell = ws.cell(row=1, column=col_idx, value=col_name)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = header_border
+        
+        # Write data with formatting
+        for row_idx, row in enumerate(query.all(), 2):
+            # Alternating row color
+            row_fill = even_fill if row_idx % 2 == 0 else odd_fill
+            
+            for col_idx, col_name in enumerate(export_columns, 1):
+                value = getattr(row, col_name, '')
+                
+                # Format value based on type
+                if isinstance(value, datetime):
+                    display_value = value.strftime('%d/%m/%Y %H:%M')
+                elif value is None:
+                    display_value = ''
+                else:
+                    display_value = str(value)
+                
+                cell = ws.cell(row=row_idx, column=col_idx, value=display_value)
+                cell.border = data_border
+                cell.fill = row_fill
+                cell.alignment = Alignment(vertical="center")
+        
+        # Auto-size columns with limits
+        for col_idx, column in enumerate(ws.columns, 1):
+            max_length = 0
+            column_letter = get_column_letter(col_idx)
+            
+            for cell in column:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except:
+                    pass
+            
+            # Set width with min and max limits
+            adjusted_width = min(max(max_length + 2, 10), 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Freeze header row
+        ws.freeze_panes = 'A2'
+        
+        # Add auto-filter
+        if len(export_columns) > 0:
+            ws.auto_filter.ref = f"A1:{get_column_letter(len(export_columns))}1"
+        
+        # Set row height for header
+        ws.row_dimensions[1].height = 30
+        
+        # Save to BytesIO
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        # Return response
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{self.name or 'export'}_{timestamp}.xlsx"
+        
+        return Response(
+            output.getvalue(),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
 
     def is_accessible(self):
         print(
@@ -94,7 +215,7 @@ class UserView(AuthenticatedModelView):
 # ==================== CLASS MANAGEMENT VIEW ====================
 
 
-class ClassView(ModelView):
+class ClassView(AuthenticatedModelView):
     column_list = [
         'id', 'name', 'numberStudent', 'max_capacity',
         'semester', 'fromYear', 'toYear', 'teacher'
@@ -102,7 +223,6 @@ class ClassView(ModelView):
     column_searchable_list = ['name']
     column_filters = ['semester', 'fromYear', 'toYear', 'teacher_id']
     column_editable_list = []
-    can_export = True
     page_size = 20
     form_excluded_columns = ['invoices']
     form_columns = [
@@ -369,6 +489,64 @@ class InvoiceView(AuthenticatedModelView):
     column_default_sort = ('createdAt', True)
 
 
+# ==================== MEAL ATTENDANCE VIEW ====================
+class MealAttendanceView(AuthenticatedModelView):
+    """
+    Quản lý điểm danh bữa ăn
+    """
+    column_list = ['id', 'student', 'attendance_date', 'created_by_user', 'note', 'active']
+    column_searchable_list = ['note']
+    column_filters = ['attendance_date', 'student_id', 'created_by', 'active']
+    column_labels = {
+        'id': 'ID',
+        'student': 'Học sinh',
+        'student_id': 'Mã học sinh',
+        'attendance_date': 'Ngày ăn',
+        'created_by': 'Người tạo',
+        'created_by_user': 'Giáo viên tạo',
+        'note': 'Ghi chú',
+        'active': 'Hoạt động'
+    }
+    can_export = True
+    page_size = 50
+    
+    # Sắp xếp theo ngày mới nhất
+    column_default_sort = ('attendance_date', True)
+    
+    # Custom formatter cho attendance_date
+    def _attendance_date_formatter(view, context, model, name):
+        from QuanLyHocSinh.utils import format_date_display
+        if model.attendance_date:
+            return model.attendance_date.strftime('%d/%m/%Y')
+        return ''
+    
+    # Custom formatter to display created_by user info
+    def _created_by_formatter(view, context, model, name):
+        if model.created_by:
+            user = User.query.get(model.created_by)
+            if user:
+                return f"{user.lastName} {user.firstName}"
+        return ''
+    
+    column_formatters = {
+        'attendance_date': _attendance_date_formatter,
+        'created_by_user': _created_by_formatter
+    }
+    
+    # Form configuration
+    form_excluded_columns = []
+    
+    # Override to set default date to today
+    def on_model_change(self, form, model, is_created):
+        """
+        Set created_by automatically if creating new record
+        """
+        if is_created and not model.created_by:
+            model.created_by = current_user.id
+        
+        super(MealAttendanceView, self).on_model_change(form, model, is_created)
+
+
 # ==================== SYSTEM CONFIG VIEW ====================
 class SystemConfigView(AuthenticatedModelView):
     """
@@ -400,14 +578,65 @@ class StatsView(BaseView):
 
     @expose('/')
     def index(self):
-        # Lấy dữ liệu thống kê từ dao
+        """
+        Trang thống kê với biểu đồ tương tác (sidebar layout)
+        """
+        from sqlalchemy import func
+        from QuanLyHocSinh import dao
+        from datetime import date
+        from flask import request
+        
+        # Get year from query parameter or use current year
+        current_year = request.args.get('year', date.today().year, type=int)
+        total_students = Student.query.filter_by(active=True).count()
+        
+        # 2. Tổng số lớp
+        total_classes = Class.query.filter_by(active=True).count()
+        
+        # 3. Thống kê giới tính
+        gender_stats = db.session.query(
+            Student.gender,
+            func.count(Student.id).label('count')
+        ).filter(Student.active == True).group_by(Student.gender).all()
+        
+        male_count = sum(count for gender, count in gender_stats if gender)
+        female_count = sum(count for gender, count in gender_stats if not gender)
+        
+        # 4. Thống kê sĩ số từng lớp
+        class_enrollment = dao.get_class_enrollment_stats()
+        
+        # 5. Thống kê doanh thu theo năm được chọn
+        monthly_revenue = dao.get_monthly_revenue_stats(year=current_year)
+        
         stats_data = {
-            'total_students': len(dao.load_students()) if hasattr(dao, 'load_students') else 0,
-            'total_classes': 0,  # Sẽ implement sau
-            'revenue_stats': {}  # Sẽ implement sau
+            'total_students': total_students,
+            'total_classes': total_classes,
+            'male_count': male_count,
+            'female_count': female_count,
+            'class_enrollment': class_enrollment,
+            'monthly_revenue': monthly_revenue,
+            'current_year': current_year
         }
-
+        
         return self.render('admin/stats.html', **stats_data)
+    
+    @expose('/api/revenue-by-year')
+    def get_revenue_by_year(self):
+        """
+        API endpoint để lấy dữ liệu doanh thu theo năm (AJAX)
+        """
+        from flask import request, jsonify
+        from QuanLyHocSinh import dao
+        from datetime import date
+        
+        year = request.args.get('year', date.today().year, type=int)
+        revenue_data = dao.get_monthly_revenue_stats(year=year)
+        
+        return jsonify({
+            'success': True,
+            'data': revenue_data,
+            'year': year
+        })
 
     def is_accessible(self):
         return current_user.is_authenticated and current_user.user_role == UserRole.ADMIN
@@ -477,6 +706,7 @@ admin.add_view(ClassView(Class, db.session, name='Lớp học', category='Quản
 admin.add_view(StudentView(Student, db.session, name='Học sinh', category='Quản lý'))
 admin.add_view(UserView(User, db.session, name='Người dùng', category='Hệ thống'))
 admin.add_view(HealthRecordView(HealthRecord, db.session, name='Hồ sơ sức khỏe', category='Quản lý'))
+admin.add_view(MealAttendanceView(MealAttendance, db.session, name='Điểm danh bữa ăn', category='Quản lý'))
 admin.add_view(InvoiceView(Invoice, db.session, name='Hóa đơn'))
 admin.add_view(SystemConfigView(SystemConfig, db.session, name='Cấu hình', category='Hệ thống'))
 admin.add_view(StatsView(name='Thống kê & Báo cáo'))

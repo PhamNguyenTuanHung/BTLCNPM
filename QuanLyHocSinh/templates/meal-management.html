@@ -1,208 +1,686 @@
 {% extends "layout/base.html" %}
 
-{% block title %}Quản lý Ăn uống Trẻ em - Hoa Mai{% endblock %}
+{% block title %}Quản lý Bữa ăn Trẻ em - Hoa Mai{% endblock %}
 
 {% block content %}
 
 <div class="page-content-wrapper">
-
-
+    <!-- Header Section -->
     <div class="control-panel">
         <div class="control-header">
             <div>
                 <h2>Quản lý Bữa ăn Trẻ em</h2>
                 <p class="student-count-text">
-                    Tổng số trẻ đang theo dõi: <span class="count-highlight">{{ students|length }}</span>
+                    Tổng số trẻ: <span class="count-highlight">{{ students|length }}</span>
                 </p>
             </div>
         </div>
 
-
-        <div class="date-picker" style="margin-top: 1rem;">
-            <label for="record-date">Chọn ngày:</label>
-            <input type="date" id="record-date"
-                   value="{{ selected_date }}">
+        <!-- Week Navigation -->
+        <div class="week-navigation" style="margin-top: 1.5rem; display: flex; gap: 1rem; align-items: center;">
+            <a href="?week={{ week_offset - 1 }}" class="btn-week-nav">
+                ← Tuần trước
+            </a>
+            <span class="current-week-label">
+                <strong>Tuần: {{ week_dates[0].strftime('%d/%m') }} - {{ week_dates[6].strftime('%d/%m/%Y') }}</strong>
+            </span>
+            <a href="?week={{ week_offset + 1 }}" class="btn-week-nav">
+                Tuần sau →
+            </a>
+            {% if week_offset != 0 %}
+            <a href="?week=0" class="btn-week-nav btn-current-week">
+                Tuần hiện tại
+            </a>
+            {% endif %}
         </div>
     </div>
 
+    <!-- Weekly Grid Table -->
     <div class="content-card full-width">
-        <h3>Cập nhật các học sinh ăn ngày {{selected_date}}</h3>
-        <p class="table-note">Tick ✔ nếu trẻ đã ăn (áp dụng cho toàn bộ bữa ăn trong ngày).</p>
-        <div class="search-box">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                 class="icon-search">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.3-4.3"></path>
+        <h3 style="display: flex; align-items: center; gap: 8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
             </svg>
-           <form method="get" class="filter-controls">
-                <input type="text" name="keyword" placeholder="Tìm kiếm theo tên trẻ"
-                       value="{{ keyword }}" class="search-input">
+            Chấm điểm danh bữa ăn theo tuần
+        </h3>
+        <p class="table-note">Tick ✔ vào ô nếu trẻ có ăn, nhấp vào ô đã tick để nhập ghi chú</p>
 
-                <select name="status" class="filter-select" onchange="this.form.submit()">
-                    <option value="" {% if not selected_status %}selected{% endif %}>Tất cả</option>
-                    <option value="updated" {% if selected_status==
-                    'paid' %}selected{% endif %}>Đã đóng</option>
-                    <option value="unpaid" {% if selected_status==
-                    'unpaid' %}selected{% endif %}>Chưa đóng</option>
-                </select>
-            </form>
-        </div>
         <div class="meal-table-wrapper">
-
-            <table class="meal-table">
+            <table class="weekly-meal-grid">
                 <thead>
-                <tr>
-                    <th style="width:40px;">STT</th>
-                    <th style="min-width:150px;">Tên trẻ</th>
-                    <th style="width:200px;">Có ăn</th>
-                </tr>
+                    <tr>
+                        <th style="width: 50px;">STT</th>
+                        <th style="min-width: 180px;">Tên trẻ</th>
+                        {% for day in week_dates %}
+                        <th class="day-column">
+                            {% set day_names = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'] %}
+                            <div>{{ day_names[loop.index0] }}</div>
+                            <small>{{ day.strftime('%d/%m') }}</small>
+                            <div style="margin-top: 8px;">
+                                <label
+                                    style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                                    <input type="checkbox" class="header-checkbox" data-day="{{ day.isoformat() }}"
+                                        style="width: 16px; height: 16px; cursor: pointer;">
+                                    <small style="font-size: 11px; font-weight: normal;">Tất cả</small>
+                                </label>
+                            </div>
+                        </th>
+                        {% endfor %}
+                    </tr>
                 </thead>
                 <tbody>
-                {% for student in students %}
-                {% set ate_status = student.daily_status.get(selected_date, {}).ate_today or false %}
-
-                <tr data-student-id="{{ student.id }}">
-                    <td>{{ student.id }}</td>
-                    <td>{{ student.name }}</td>
-
-                    {# Checkbox duy nhất cho cả ngày (name="ate_today") #}
-                    <td class="meal-check-in text-center">
-                        <input type="checkbox" class="meal-checkbox" name="ate_today"
-                               {% if ate_status %}checked{% endif %}>
-                    </td>
-
-                </tr>
-                {% endfor %}
+                    {% for student in students %}
+                    <tr data-student-id="{{ student.id }}">
+                        <td>{{ loop.index }}</td>
+                        <td class="student-name">{{ student.name }}</td>
+                        {% for day in week_dates %}
+                        {% set day_str = day.isoformat() %}
+                        {% set is_checked = student.weekly_attendance.get(day_str, False) %}
+                        <td class="checkbox-cell">
+                            <div class="meal-cell-wrapper">
+                                <input type="checkbox" class="meal-checkbox" data-date="{{ day_str }}" {% if is_checked
+                                    %}checked{% endif %}>
+                                <button class="note-btn"
+                                    style="display: {% if is_checked %}inline-block{% else %}none{% endif %}; padding: 4px; line-height: 1;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </div>
 
-        <div class="save-button-wrapper">
-            <button id="save-meals">Lưu dữ liệu bữa ăn</button>
+        <div class="save-button-wrapper" style="margin-top: 1.5rem; text-align: center;">
+            <button id="save-meals" class="btn-primary"
+                style="display: flex; align-items: center; gap: 8px; justify-content: center; margin: 0 auto;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                Lưu điểm danh
+            </button>
         </div>
     </div>
+
+    <!-- Monthly Summary Table -->
     <div class="content-card full-width" style="margin-top: 1.5rem;">
-        <h3>📈 Tổng Kết Số Ngày Ăn Tháng Này</h3>
-        <p class="table-note">Tổng số ngày trẻ đã được chấm công là "Có ăn" trong tháng hiện tại.</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+                Tổng kết tháng {{ current_month}}/{{ current_year }}
+            </h3>
+            <a href="/api/meal-attendance/export-excel?month={{ current_month }}&year={{ current_year }}"
+                class="btn-export-excel" download style="display: flex; align-items: center; gap: 6px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Xuất Excel
+            </a>
+        </div>
+        <p class="table-note">Tổng số ngày ăn trong tháng và chi phí</p>
 
         <div class="meal-table-wrapper">
             <table class="data-table">
                 <thead>
-                <tr>
-                    <th style="width:40px;">STT</th>
-                    <th style="min-width:150px;">Tên trẻ</th>
-                    <th style="width:150px;">Tổng Ngày Đã Ăn</th>
-                    <th style="width:150px;">Chi Phí Ăn Uống</th>
-                </tr>
+                    <tr>
+                        <th style="width: 50px;">STT</th>
+                        <th style="min-width: 180px;">Tên trẻ</th>
+                        <th style="width: 120px;">Tổng ngày ăn</th>
+                        <th style="min-width: 300px;">Đã ăn vào ngày</th>
+                        <th style="width: 160px;">Chi phí ăn uống</th>
+                    </tr>
                 </thead>
                 <tbody>
-                {% for student in students %}
-                {# Giả định: total_meals_eaten được tính từ Flask #}
-                {% set days_eaten = student.total_meals_eaten | default(0) %}
-                {# Giả định: student.meal_cost đã được gán (ví dụ 25000) #}
-                {% set meal_cost = student.meal_cost | default(25000) %}
-                {% set total_cost = days_eaten * meal_cost %}
-
-                <tr data-student-id="{{ student.id }}">
-                    <td>{{ loop.index }}</td>
-                    <td class="text-bold">{{ student.name }}</td>
-
-                    {# Tổng Ngày Đã Ăn #}
-                    <td class="text-center text-success text-bold">
-                        {{ days_eaten }} ngày
-                    </td>
-
-                    {# Chi Phí Ăn Uống (Ví dụ: 25,000 VND/ngày) #}
-                    <td class="text-right text-warning text-bold">
-                        {{ "{:,.0f}".format(total_cost) }} đ
-                    </td>
-                </tr>
-                {% endfor %}
+                    {% for student in students %}
+                    {% set days_eaten = student.total_meals_month | default(0) %}
+                    {% if days_eaten > 0 %}
+                    {% set total_cost = days_eaten * meal_cost %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td class="text-bold">{{ student.name }}</td>
+                        <td class="text-center text-success text-bold">
+                            {{ days_eaten }} ngày
+                        </td>
+                        <td class="text-sm">
+                            {% for date in student.meal_dates %}
+                            <span class="meal-date-badge">{{ date.strftime('%d/%m') }}</span>{% if not loop.last %}, {%
+                            endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="text-right text-warning text-bold">
+                            {{ "{:,.0f}".format(total_cost) }} đ
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
                 </tbody>
             </table>
         </div>
-
-
     </div>
 </div>
 
+<!-- Note Modal -->
+<div id="note-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>📝 Ghi chú bữa ăn</h3>
+            <span class="close-modal">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p><strong>Học sinh:</strong> <span id="modal-student-name"></span></p>
+            <p><strong>Ngày:</strong> <span id="modal-date"></span></p>
+            <label for="note-input">Ghi chú:</label>
+            <textarea id="note-input" rows="4" placeholder="Nhập ghi chú về bữa ăn (tùy chọn)..."></textarea>
+        </div>
+        <div class="modal-footer">
+            <button id="save-note-btn" class="btn-primary">Lưu ghi chú</button>
+            <button id="cancel-note-btn" class="btn-secondary">Hủy</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .week-navigation {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-week-nav {
+        padding: 0.5rem 1rem;
+        background: linear-gradient(to right, #6366F1, #8B5CF6);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        text-decoration: none;
+        font-weight: 500;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-week-nav:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-current-week {
+        background: linear-gradient(to right, #10B981, #059669);
+    }
+
+    .current-week-label {
+        padding: 0.5rem 1.5rem;
+        background: rgba(99, 102, 241, 0.1);
+        border-radius: 8px;
+        color: #6366F1;
+    }
+
+    .weekly-meal-grid {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+    }
+
+    .weekly-meal-grid th,
+    .weekly-meal-grid td {
+        padding: 0.75rem;
+        text-align: center;
+        border: 1px solid #E5E7EB;
+    }
+
+    .weekly-meal-grid thead th {
+        background: linear-gradient(to right, #6366F1, #8B5CF6);
+        color: white;
+        font-weight: 600;
+    }
+
+    .weekly-meal-grid .day-column {
+        min-width: 80px;
+    }
+
+    .weekly-meal-grid .day-column small {
+        display: block;
+        font-weight: 400;
+        opacity: 0.9;
+        margin-top: 0.25rem;
+    }
+
+    .weekly-meal-grid .student-name {
+        text-align: left;
+        font-weight: 500;
+    }
+
+    .weekly-meal-grid tbody tr:hover {
+        background-color: rgba(99, 102, 241, 0.05);
+    }
+
+    .checkbox-cell {
+        background-color: #F9FAFB;
+    }
+
+    .meal-cell-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .note-cell {
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .text-sm {
+        font-size: 13px;
+        line-height: 1.6;
+    }
+
+    .meal-date-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        background: #e0f2fe;
+        color: #0369a1;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        margin: 2px 0;
+    }
+
+    .btn-export-excel {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-export-excel:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    }
+
+    .btn-export-excel:active {
+        transform: translateY(0);
+    }
+
+    .meal-checkbox {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        accent-color: #10B981;
+    }
+
+    .note-btn {
+        padding: 0.25rem 0.5rem;
+        background: #F59E0B;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.875rem;
+        transition: background 0.2s;
+    }
+
+    .note-btn:hover {
+        background: #D97706;
+    }
+
+    .note-btn.has-note {
+        background: #10B981;
+    }
+
+    .note-btn.has-note:hover {
+        background: #059669;
+    }
+
+    .btn-primary {
+        padding: 0.75rem 2rem;
+        background: linear-gradient(to right, #10B981, #059669);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-secondary {
+        padding: 0.75rem 2rem;
+        background: #6B7280;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-secondary:hover {
+        background: #4B5563;
+    }
+
+    .save-button-wrapper {
+        margin-top: 1.5rem;
+        text-align: center;
+    }
+
+    /* Modal styles */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-content {
+        background-color: white;
+        margin: 10% auto;
+        padding: 0;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #E5E7EB;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        color: #1F2937;
+    }
+
+    .close-modal {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #6B7280;
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+
+    .close-modal:hover {
+        color: #1F2937;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-body p {
+        margin-bottom: 1rem;
+    }
+
+    .modal-body label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #374151;
+    }
+
+    .modal-body textarea {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #D1D5DB;
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 0.9rem;
+        resize: vertical;
+    }
+
+    .modal-body textarea:focus {
+        outline: none;
+        border-color: #6366F1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #E5E7EB;
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+    }
+</style>
+
 <script>
-    const searchInput = document.getElementById('search-input');
+    // Store notes for each student-date combination
+    const notesData = {};
 
-    searchInput.addEventListener('input', () => {
-        const keyword = searchInput.value.toLowerCase().trim();
+    // Modal elements
+    const modal = document.getElementById('note-modal');
+    const closeModal = document.querySelector('.close-modal');
+    const cancelBtn = document.getElementById('cancel-note-btn');
+    const saveNoteBtn = document.getElementById('save-note-btn');
+    const noteInput = document.getElementById('note-input');
+    let currentStudentId = null;
+    let currentDate = null;
 
-        document.querySelectorAll('.meal-table tbody tr').forEach(tr => {
-            const name = tr.querySelector('td:nth-child(2)').textContent.toLowerCase();
-
-
-            if (name.includes(keyword)) { // || parentName.includes(keyword)
-                tr.style.display = '';
+    // Checkbox change handler
+    document.querySelectorAll('.meal-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+            const noteBtn = e.target.parentElement.querySelector('.note-btn');
+            if (e.target.checked) {
+                noteBtn.style.display = 'inline-block';
             } else {
-                tr.style.display = 'none';
+                noteBtn.style.display = 'none';
+                // Clear note when unchecking
+                const studentId = e.target.closest('tr').dataset.studentId;
+                const date = e.target.dataset.date;
+                const noteKey = `${studentId}-${date}`;
+                delete notesData[noteKey];
+                noteBtn.classList.remove('has-note');
             }
         });
     });
 
-    // Hàm để lấy ngày được chọn từ input date
-    function getSelectedDate() {
-        return document.getElementById('record-date').value;
+    // ===== HEADER CHECKBOX - TOGGLE ALL FOR A DAY =====
+    document.querySelectorAll('.header-checkbox').forEach(headerCheckbox => {
+        headerCheckbox.addEventListener('change', function () {
+            const day = this.dataset.day;
+            const isChecked = this.checked;
+
+            // Find all checkboxes for this day and toggle them
+            document.querySelectorAll(`.meal-checkbox[data-date="${day}"]`).forEach(checkbox => {
+                checkbox.checked = isChecked;
+
+                // Trigger change event to update note button visibility
+                const event = new Event('change', { bubbles: true });
+                checkbox.dispatchEvent(event);
+            });
+        });
+    });
+
+
+    // Note button click handler
+    document.querySelectorAll('.note-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const tr = e.target.closest('tr');
+            const studentId = tr.dataset.studentId;
+            const studentName = tr.querySelector('.student-name').textContent;
+            const checkbox = e.target.parentElement.querySelector('.meal-checkbox');
+            const date = checkbox.dataset.date;
+
+            // Open modal
+            currentStudentId = studentId;
+            currentDate = date;
+            document.getElementById('modal-student-name').textContent = studentName;
+            document.getElementById('modal-date').textContent = formatDate(date);
+
+            // Load existing note
+            const noteKey = `${studentId}-${date}`;
+            noteInput.value = notesData[noteKey] || '';
+
+            modal.style.display = 'block';
+        });
+    });
+
+    // Close modal handlers
+    closeModal.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+
+    cancelBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+
+    // Save note button
+    saveNoteBtn.addEventListener('click', () => {
+        const note = noteInput.value.trim();
+        const noteKey = `${currentStudentId}-${currentDate}`;
+
+        if (note) {
+            notesData[noteKey] = note;
+            // Update button appearance
+            const tr = document.querySelector(`tr[data-student-id="${currentStudentId}"]`);
+            const checkbox = tr.querySelector(`.meal-checkbox[data-date="${currentDate}"]`);
+            const noteBtn = checkbox.parentElement.querySelector('.note-btn');
+            noteBtn.classList.add('has-note');
+        } else {
+            delete notesData[noteKey];
+            const tr = document.querySelector(`tr[data-student-id="${currentStudentId}"]`);
+            const checkbox = tr.querySelector(`.meal-checkbox[data-date="${currentDate}"]`);
+            const noteBtn = checkbox.parentElement.querySelector('.note-btn');
+            noteBtn.classList.remove('has-note');
+        }
+
+        modal.style.display = 'none';
+    });
+
+    // Format date helper
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     }
 
-    // Sự kiện lưu dữ liệu bữa ăn
+    // Save button handler
     const saveBtn = document.getElementById('save-meals');
     saveBtn.addEventListener('click', () => {
-        const date = getSelectedDate();
         const data = [];
 
-        document.querySelectorAll('.meal-table tbody tr').forEach(tr => {
+        // Collect all checkbox states and notes
+        document.querySelectorAll('.weekly-meal-grid tbody tr').forEach(tr => {
             const studentId = tr.dataset.studentId;
 
-            // Lấy trạng thái của checkbox duy nhất (name="ate_today")
-            const ateTodayCheckbox = tr.querySelector('.meal-checkbox[name="ate_today"]');
-            const ate_today = ateTodayCheckbox ? ateTodayCheckbox.checked : false;
+            tr.querySelectorAll('.meal-checkbox').forEach(checkbox => {
+                const date = checkbox.dataset.date;
+                const ate = checkbox.checked;
+                const noteKey = `${studentId}-${date}`;
+                const note = notesData[noteKey] || '';
 
-            // Dữ liệu đơn giản hóa cho backend
-            data.push({
-                student_id: studentId,
-                date: date,
-                ate_today: ate_today
+                data.push({
+                    student_id: parseInt(studentId),
+                    date: date,
+                    ate: ate,
+                    note: note
+                });
             });
         });
 
-        console.log('Dữ liệu chấm công gửi lên server:', data);
+        console.log('Sending attendance data with notes:', data);
 
-        // Gửi dữ liệu lên server
+        // Send to server
         fetch('/meal-attendance', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
             .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    alert(data.message);
+            .then(result => {
+                if (result.success) {
+                    // Lưu thông báo vào sessionStorage để hiển thị sau khi reload
+                    sessionStorage.setItem('flashMessage', JSON.stringify({
+                        type: 'success',
+                        message: result.message
+                    }));
+                    // Reload ngay lập tức
+                    window.location.reload();
                 } else {
-                    alert('Có lỗi khi lưu dữ liệu: ' + (data.message || ''));
+                    showError('❌ Lỗi: ' + (result.message || 'Không thể lưu dữ liệu'));
                 }
             })
             .catch(err => {
-                console.error('Lỗi khi gửi dữ liệu:', err);
-                alert('Có lỗi xảy ra khi gửi dữ liệu lên server!');
+                console.error('Error:', err);
+                showError('❌ Có lỗi xảy ra khi gửi dữ liệu!');
             });
     });
 
-    // Tải dữ liệu bữa ăn khi ngày thay đổi (Logic phía Frontend)
-    document.getElementById('record-date').addEventListener('change', (e) => {
-        const newDate = e.target.value;
-        console.log(`Đã chọn ngày mới: ${newDate}. Tải dữ liệu chấm công tương ứng...`);
-        const params = new URLSearchParams(window.location.search);
+    // Hiển thị thông báo sau khi reload (nếu có)
+    window.addEventListener('DOMContentLoaded', () => {
+        const flashMessage = sessionStorage.getItem('flashMessage');
+        if (flashMessage) {
+            const { type, message } = JSON.parse(flashMessage);
 
-        params.set("date", newDate);
-        params.set("page", 1);
-        window.location.href = `/meal-management?${params.toString()}`;
+            // Hiển thị thông báo
+            if (type === 'success') {
+                showSuccess(message);
+            } else if (type === 'error') {
+                showError(message);
+            } else if (type === 'warning') {
+                showWarning(message);
+            } else if (type === 'info') {
+                showInfo(message);
+            }
+
+            // Xóa thông báo khỏi sessionStorage
+            sessionStorage.removeItem('flashMessage');
+        }
     });
-
 </script>
+
+{% include 'layout/message.html' %}
 {% endblock %}

@@ -1,0 +1,579 @@
+{% extends 'admin/master.html' %}
+
+{% block body %}
+<div class="stats-page-container">
+    <h2 style="margin-bottom: 1.5rem;">Thống kê & Báo cáo</h2>
+
+    <div class="stats-layout">
+        <!-- Left Sidebar Menu -->
+        <div class="stats-sidebar">
+            <h5 class="sidebar-title">Danh mục thống kê</h5>
+            <ul class="stats-menu">
+                <li onclick="showStat('enrollment')" id="menu-enrollment">
+                    <i class="fa fa-users"></i>
+                    <span>Sĩ số từng lớp</span>
+                </li>
+                <li onclick="showStat('revenue')" id="menu-revenue">
+                    <i class="fa fa-line-chart"></i>
+                    <span>Doanh thu theo tháng</span>
+                </li>
+                <li onclick="showStat('gender')" id="menu-gender">
+                    <i class="fa fa-pie-chart"></i>
+                    <span>Tỉ lệ Nam/Nữ</span>
+                </li>
+            </ul>
+
+            <div class="sidebar-stats">
+                <h6>Tổng quan</h6>
+                <div class="stat-item">
+                    <span>Tổng học sinh:</span>
+                    <strong>{{ total_students }}</strong>
+                </div>
+                <div class="stat-item">
+                    <span>Tổng lớp:</span>
+                    <strong>{{ total_classes }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Content Panel -->
+        <div class="stats-content">
+            <!-- Welcome message -->
+            <div id="welcome-panel" class="stat-panel">
+                <div class="welcome-box">
+                    <i class="fa fa-chart-bar fa-3x text-muted"></i>
+                    <h4>Chọn một mục bên trái để xem thống kê</h4>
+                    <p class="text-muted">Các biểu đồ sẽ được hiển thị tại đây</p>
+                </div>
+            </div>
+
+            <!-- Class Enrollment Panel -->
+            <div id="enrollment-panel" class="stat-panel" style="display:none;">
+                <h3><i class="fa fa-users"></i> Sĩ số từng lớp</h3>
+                <p class="text-muted">Biểu đồ cột hiển thị số lượng học sinh trong mỗi lớp</p>
+                <div class="chart-wrapper">
+                    <canvas id="enrollmentChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Revenue Panel -->
+            <div id="revenue-panel" class="stat-panel" style="display:none;">
+                <h3><i class="fa fa-line-chart"></i> Doanh thu theo tháng</h3>
+
+                <!-- Filters -->
+                <div class="filters-box">
+                    <div class="filter-group">
+                        <label>Năm:</label>
+                        <select id="revenue-year" class="form-control" onchange="updateRevenueChart()">
+                            <option value="2023" {% if current_year==2023 %}selected{% endif %}>2023</option>
+                            <option value="2024" {% if current_year==2024 %}selected{% endif %}>2024</option>
+                            <option value="{{ current_year }}" selected>{{ current_year }}</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Từ tháng:</label>
+                        <select id="revenue-month-start" class="form-control" disabled>
+                            {% for m in range(1, 13) %}
+                            <option value="{{ m }}" {% if m==1 %}selected{% endif %}>Tháng {{ m }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Đến tháng:</label>
+                        <select id="revenue-month-end" class="form-control" onchange="updateRevenueChart()">
+                            {% for m in range(1, 13) %}
+                            <option value="{{ m }}" {% if m==12 %}selected{% endif %}>Tháng {{ m }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <button class="btn btn-primary btn-sm" onclick="updateRevenueChart()">
+                        <i class="fa fa-refresh"></i> Cập nhật
+                    </button>
+                </div>
+
+                <div class="chart-wrapper">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Gender Ratio Panel -->
+            <div id="gender-panel" class="stat-panel" style="display:none;">
+                <h3><i class="fa fa-venus-mars"></i> Tỉ lệ Nam/Nữ</h3>
+                <p class="text-muted">Biểu đồ tròn hiển thị phân bố giới tính học sinh</p>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="chart-wrapper">
+                            <canvas id="genderChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="gender-stats-detail">
+                            <h5>Chi tiết</h5>
+                            <div class="detail-item">
+                                <span class="badge badge-primary" style="background: rgba(54, 162, 235, 1);">Nam</span>
+                                <span>{{ male_count }} học sinh ({{ ((male_count / (male_count + female_count) * 100) if
+                                    (male_count + female_count) > 0 else 0) | round(1) }}%)</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="badge badge-danger" style="background: rgba(255, 99, 132, 1);">Nữ</span>
+                                <span>{{ female_count }} học sinh ({{ ((female_count / (male_count + female_count) *
+                                    100) if (male_count + female_count) > 0 else 0) | round(1) }}%)</span>
+                            </div>
+                            <hr>
+                            <div class="detail-item">
+                                <strong>Tổng:</strong>
+                                <strong>{{ male_count + female_count }} học sinh</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<script>
+    // Data from Flask
+    const enrollmentData = {{ class_enrollment | tojson | safe }} || [];
+    const revenueData = {{ monthly_revenue | tojson | safe }} || [];
+    const genderData = {
+    male: {{ male_count | default (0) }},
+    female: {{ female_count | default (0) }}
+    };
+    const currentYear = {{ current_year | default (2025) }};
+
+    // Chart instances
+    let enrollmentChart = null;
+    let revenueChart = null;
+    let genderChart = null;
+
+    // Show specific stat panel
+    function showStat(type) {
+        // Hide all panels
+        document.querySelectorAll('.stat-panel').forEach(p => p.style.display = 'none');
+
+        // Remove active class from menu
+        document.querySelectorAll('.stats-menu li').forEach(li => li.classList.remove('active'));
+
+        // Show selected panel
+        document.getElementById(type + '-panel').style.display = 'block';
+        document.getElementById('menu-' + type).classList.add('active');
+
+        // Create chart if not exists
+        if (type === 'enrollment' && !enrollmentChart) {
+            createEnrollmentChart();
+        } else if (type === 'revenue' && !revenueChart) {
+            createRevenueChart();
+        } else if (type === 'gender' && !genderChart) {
+            createGenderChart();
+        }
+    }
+
+    // Create Class Enrollment Bar Chart
+    function createEnrollmentChart() {
+        const ctx = document.getElementById('enrollmentChart').getContext('2d');
+
+        const labels = enrollmentData.map(item => item.class_name);
+        const data = enrollmentData.map(item => item.student_count);
+
+        enrollmentChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Số lượng học sinh',
+                    data: data,
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Sĩ số từng lớp học',
+                        font: {
+                            size: 16,
+                            weight: 'bold'
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        },
+                        title: {
+                            display: true,
+                            text: 'Số lượng học sinh'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Lớp học'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Create Revenue Line Chart
+    function createRevenueChart() {
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+
+        const labels = revenueData.map(item => `Tháng ${item.month}`);
+        const data = revenueData.map(item => item.revenue);
+
+        revenueChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Doanh thu (VNĐ)',
+                    data: data,
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    title: {
+                        display: true,
+                        text: `Doanh thu năm ${currentYear}`,
+                        font: {
+                            size: 16,
+                            weight: 'bold'
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                return 'Doanh thu: ' + context.parsed.y.toLocaleString('vi-VN') + ' đ';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function (value) {
+                                return value.toLocaleString('vi-VN');
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Doanh thu (VNĐ)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Tháng'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Create Gender Pie Chart
+    function createGenderChart() {
+        const ctx = document.getElementById('genderChart').getContext('2d');
+
+        genderChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: ['Nam', 'Nữ'],
+                datasets: [{
+                    data: [genderData.male, genderData.female],
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 99, 132, 0.8)'
+                    ],
+                    borderColor: [
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 99, 132, 1)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: {
+                                size: 14
+                            },
+                            padding: 20
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Phân bố giới tính',
+                        font: {
+                            size: 16,
+                            weight: 'bold'
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const label = context.label || '';
+                                const value = context.parsed;
+                                const total = genderData.male + genderData.female;
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                return label + ': ' + value + ' học sinh (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Update revenue chart based on year (AJAX version)
+    async function updateRevenueChart() {
+        if (!revenueChart) {
+            return;
+        }
+
+        const year = parseInt(document.getElementById('revenue-year').value);
+
+        try {
+            // Fetch data from server via AJAX
+            const response = await fetch(`/admin/statsview/api/revenue-by-year?year=${year}`);
+            const result = await response.json();
+
+            if (!result.success) {
+                console.error('Failed to fetch revenue data');
+                return;
+            }
+
+            // Update chart with new data
+            const newData = result.data;
+            const labels = newData.map(item => `Tháng ${item.month}`);
+            const data = newData.map(item => item.revenue);
+
+            revenueChart.data.labels = labels;
+            revenueChart.data.datasets[0].data = data;
+            revenueChart.options.plugins.title.text = `Doanh thu năm ${year}`;
+
+            // Animate the update
+            revenueChart.update('active');
+
+        } catch (error) {
+            console.error('Error fetching revenue data:', error);
+        }
+    }
+
+    // Auto-show first panel on load
+    window.addEventListener('load', () => {
+        showStat('enrollment');
+    });
+</script>
+
+<style>
+    .stats-page-container {
+        padding: 1rem;
+    }
+
+    .stats-layout {
+        display: flex;
+        gap: 2rem;
+        min-height: 600px;
+    }
+
+    .stats-sidebar {
+        width: 280px;
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        height: fit-content;
+    }
+
+    .sidebar-title {
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #333;
+        font-size: 1.1rem;
+    }
+
+    .stats-menu {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 2rem 0;
+    }
+
+    .stats-menu li {
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        background: white;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        border: 2px solid transparent;
+    }
+
+    .stats-menu li i {
+        font-size: 1.2rem;
+        color: #666;
+    }
+
+    .stats-menu li:hover {
+        background: #e3f2fd;
+        transform: translateX(5px);
+        border-color: #2196F3;
+    }
+
+    .stats-menu li.active {
+        background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+    }
+
+    .stats-menu li.active i {
+        color: white;
+    }
+
+    .sidebar-stats {
+        padding-top: 1rem;
+        border-top: 2px solid #dee2e6;
+    }
+
+    .sidebar-stats h6 {
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: #666;
+    }
+
+    .stat-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        font-size: 0.9rem;
+    }
+
+    .stat-item strong {
+        color: #2196F3;
+    }
+
+    .stats-content {
+        flex: 1;
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .stat-panel h3 {
+        margin-bottom: 0.5rem;
+        color: #333;
+    }
+
+    .stat-panel h3 i {
+        margin-right: 0.5rem;
+        color: #2196F3;
+    }
+
+    .welcome-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 400px;
+        text-align: center;
+        color: #999;
+    }
+
+    .chart-wrapper {
+        margin-top: 2rem;
+        padding: 1rem;
+    }
+
+    .filters-box {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-end;
+        padding: 1.5rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin: 1.5rem 0;
+        flex-wrap: wrap;
+    }
+
+    .filter-group {
+        flex: 1;
+        min-width: 150px;
+    }
+
+    .filter-group label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        color: #666;
+    }
+
+    .gender-stats-detail {
+        padding: 2rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-top: 2rem;
+    }
+
+    .gender-stats-detail h5 {
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+
+    .detail-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.75rem 0;
+        font-size: 1rem;
+    }
+
+    .detail-item .badge {
+        min-width: 50px;
+        text-align: center;
+        padding: 0.4rem 0.6rem;
+    }
+</style>
+
+{% include 'layout/message.html' %}
+{% endblock %}

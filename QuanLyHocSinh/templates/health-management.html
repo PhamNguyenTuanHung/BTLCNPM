@@ -9,7 +9,7 @@
     <div class="control-panel-new">
         <div class="control-header-new">
             <div>
-                <h1 >Ghi nhận sức khỏe cho trẻ trong lớp</h1>
+                <h1>Ghi nhận sức khỏe cho trẻ trong lớp</h1>
             </div>
         </div>
 
@@ -17,10 +17,8 @@
         <div class="progress-section">
             <p class="progress-text">Tiến độ ghi nhận</p>
             <div class="progress-bar-container">
-                <div
-                        class="progress-bar-fill"
-                        id="progress-bar"
-                        style="width: {{ progress_stats.percentage | round(0) }}%;">
+                <div class="progress-bar-fill" id="progress-bar"
+                    style="width: {{ progress_stats.percentage | round(0) }}%;">
                 </div>
             </div>
             <span class="progress-count">
@@ -37,23 +35,18 @@
                 <!-- Khối 2: Chọn ngày -->
                 <div class="filter-block">
                     <label for="record-date">Chọn ngày:</label>
-                    <input type="date" id="record-date"
-                           name="date"
-                           value="{{ selected_date }}"
-                           class="date-input">
+                    <input type="date" id="record-date" name="date" value="{{ selected_date }}" class="date-input">
                 </div>
-                 <!-- Khối 1: Tìm kiếm keyword -->
+                <!-- Khối 1: Tìm kiếm keyword -->
                 <div class="filter-block">
-                    <input type="text" id="keyword" name="keyword"
-                           placeholder="Tên trẻ hoặc phụ huynh"
-                           value="{{ keyword }}"
-                           class="search-input">
+                    <input type="text" id="keyword" name="keyword" placeholder="Tên trẻ hoặc phụ huynh"
+                        value="{{ keyword }}" class="search-input">
                 </div>
 
                 <!-- Khối 3: Trạng thái cập nhật -->
                 <div class="filter-block">
                     <select name="updated_status" id="updated_status" class="filter-select"
-                            onchange="this.form.submit()">
+                        onchange="this.form.submit()">
                         <option value="" {% if not updated_status %}selected{% endif %}>Tất cả</option>
                         <option value="updated" {% if updated_status=='updated' %}selected{% endif %}>Đã cập nhật
                         </option>
@@ -73,8 +66,7 @@
     <div class="student-health-list">
 
         <!-- Header -->
-        <div class="student-health-list-header"
-             style="grid-template-columns: 200px 1fr 1fr 120px 1.5fr 100px;">
+        <div class="student-health-list-header" style="grid-template-columns: 200px 1fr 1fr 120px 1.5fr 100px;">
             <div>Tên trẻ</div>
             <div>Cân nặng (kg)</div>
             <div>Nhiệt độ (°C)</div>
@@ -89,10 +81,9 @@
         {% set temp = r.temp if r else None %}
         {% set high = temp is not none and temp >= 37.5 %}
 
-        <div class="student-health-card"
-             data-student-id="{{ student.id }}"
-             data-recorded="{{ '1' if student.current_record else '0' }}"
-             style="grid-template-columns: 200px 1fr 1fr 120px 1.5fr 100px;">
+        <div class="student-health-card" data-student-id="{{ student.id }}"
+            data-recorded="{{ '1' if student.current_record else '0' }}"
+            style="grid-template-columns: 200px 1fr 1fr 120px 1.5fr 100px;">
 
             <!-- Name -->
             <div class="student-info-col">
@@ -103,18 +94,12 @@
             </div>
 
             <!-- Weight -->
-            <input type="number" step="0.1"
-                   class="input-health input-weight"
-                   value="{{ r.weight if r }}"
-                   name="weight"
-                   {% if not editable %}disabled{% endif %}>
+            <input type="number" step="0.1" class="input-health input-weight" value="{{ r.weight if r }}" name="weight"
+                {% if not editable %}disabled{% endif %}>
 
             <!-- Temperature -->
-            <input type="number" step="0.1"
-                   class="input-health input-temp {% if high %}status-high-input{% endif %}"
-                   value="{{ r.temp if r }}"
-                   name="temp"
-                   {% if not editable %}disabled{% endif %}>
+            <input type="number" step="0.1" class="input-health input-temp {% if high %}status-high-input{% endif %}"
+                value="{{ r.temp if r }}" name="temp" {% if not editable %}disabled{% endif %}>
 
             <!-- Status -->
             <div class="status-col">
@@ -128,17 +113,12 @@
             </div>
 
             <!-- Note -->
-            <textarea rows="1"
-                      class="input-health input-note"
-                      placeholder="Ghi chú..."
-                      name="note"
-                      {% if not editable %}disabled{% endif %}>{{ r.note if r }}</textarea>
+            <textarea rows="1" class="input-health input-note" placeholder="Ghi chú..." name="note" {% if not editable
+                %}disabled{% endif %}>{{ r.note if r }}</textarea>
 
             <!-- Action -->
             {% if editable %}
-            <button class="btn-save-single"
-                    data-id="{{ student.id }}"
-                    onclick="updateHealth(this)">Lưu
+            <button class="btn-save-single" data-id="{{ student.id }}" onclick="updateHealth(this)">Lưu
             </button>
             {% else %}
             <span class="text-muted">—</span>
@@ -151,27 +131,7 @@
     <p class="table-note">
         Nhiệt độ ≥ 37.5°C sẽ được đánh dấu cảnh báo.
     </p>
-    <div class="pagination">
-        {% set keyword = request.args.get('keyword','') %}
-        {% set updated_status = request.args.get('updated_status','') %}
-        {% set date = selected_date %} {# bạn đã truyền selected_date từ route #}
-
-        {% if pagination.has_prev %}
-        <a href="?page={{ pagination.prev_num }}&keyword={{ keyword }}&date={{ date }}&updated_status={{ updated_status }}">«</a>
-        {% endif %}
-
-        {% for p in range(1, pagination.pages + 1) %}
-        <a href="?page={{ p }}&keyword={{ keyword }}&date={{ date }}&updated_status={{ updated_status }}"
-           class="{{ 'active' if p == pagination.page else '' }}">
-            {{ p }}
-        </a>
-        {% endfor %}
-
-        {% if pagination.has_next %}
-        <a href="?page={{ pagination.next_num }}&keyword={{ keyword }}&date={{ date }}&updated_status={{ updated_status }}">»</a>
-        {% endif %}
-
-    </div>
+    {% include 'layout/pagination.html' %}
 
 </div>
 <script>
@@ -192,7 +152,7 @@
 
         // validate nhẹ
         if (temp && (temp < 30 || temp > 45)) {
-            alert("Nhiệt độ không hợp lệ!");
+            showWarning("⚠️ Nhiệt độ không hợp lệ! Vui lòng kiểm tra lại.");
             return;
         }
 
@@ -201,7 +161,7 @@
 
         fetch("/health-management", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 id: studentId,
                 weight,
@@ -238,11 +198,11 @@
                     if (avatar) avatar.classList.add("recorded");
                 }
 
-                alert("✅ Đã lưu sức khỏe!");
+                showSuccess("✅ Đã lưu thông tin sức khỏe thành công!");
             })
             .catch(err => {
                 console.error(err);
-                alert("❌ Lỗi lưu dữ liệu!");
+                showError("❌ Lỗi khi lưu dữ liệu! Vui lòng thử lại.");
             })
             .finally(() => {
                 btn.disabled = false;
@@ -312,4 +272,6 @@
         window.location.href = `/health-management?${params.toString()}`;
     });
 </script>
+
+{% include 'layout/message.html' %}
 {% endblock %}

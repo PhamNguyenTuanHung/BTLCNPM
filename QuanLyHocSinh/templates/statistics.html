@@ -4,16 +4,18 @@
 
 {% block content %}
 <div class="page-content-wrapper">
-    
+
     <div class="control-panel">
         <div class="control-header">
             <div>
                 <h2>Bảng điều khiển Thống kê</h2>
-                <p class="student-count-text">Tổng quan dữ liệu năm học: <span class="count-highlight">2025-2026</span></p>
+                <p class="student-count-text">Tổng quan dữ liệu năm học: <span class="count-highlight">2025-2026</span>
+                </p>
             </div>
 
             {# NÚT HÀNH ĐỘNG #}
-            <button id="export-report-btn" class="btn-action-fee btn-export-invoice" style="background: linear-gradient(to right, #059669, #10B981);">
+            <button id="export-report-btn" class="btn-action-fee btn-export-invoice"
+                style="background: linear-gradient(to right, #059669, #10B981);">
                 Xuất Báo cáo Chi tiết
             </button>
         </div>
@@ -78,7 +80,7 @@
 
 {# SCRIPT VẼ BIỂU ĐỒ CHART.JS #}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         // Kiểm tra xem Chart.js đã được tải chưa
         if (typeof Chart === 'undefined') {
             console.error("Chart.js library not loaded.");
@@ -87,115 +89,116 @@
 
         // Lấy dữ liệu đã được truyền từ Flask và chuyển đổi an toàn thành đối tượng JavaScript
         // Sử dụng | tojson để đảm bảo cú pháp JSON hợp lệ trong JS
-        const genderData = {{ gender_chart_data | tojson }};
-        const revenueData = {{ revenue_chart_data | tojson }};
-        const weightData = {{ weight_chart_data | tojson }};
+        const genderData = {{ gender_chart_data | tojson
+    }};
+    const revenueData = {{ revenue_chart_data | tojson }};
+    const weightData = {{ weight_chart_data | tojson }};
 
-        // --- 1. BIỂU ĐỒ TỶ LỆ TRẺ NAM / NỮ (PIE CHART) ---
-        if (genderData && genderData.data && genderData.data.length > 0) {
-            const genderCtx = document.getElementById('genderChart').getContext('2d');
-            new Chart(genderCtx, {
-                type: 'pie',
-                data: {
-                    labels: genderData.labels,
-                    datasets: [{
-                        data: genderData.data,
-                        backgroundColor: genderData.colors,
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'top' },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.label || '';
-                                    if (label) { label += ': '; }
-                                    if (context.parsed !== null) {
-                                        label += context.parsed + ' trẻ';
-                                    }
-                                    return label;
+    // --- 1. BIỂU ĐỒ TỶ LỆ TRẺ NAM / NỮ (PIE CHART) ---
+    if (genderData && genderData.data && genderData.data.length > 0) {
+        const genderCtx = document.getElementById('genderChart').getContext('2d');
+        new Chart(genderCtx, {
+            type: 'pie',
+            data: {
+                labels: genderData.labels,
+                datasets: [{
+                    data: genderData.data,
+                    backgroundColor: genderData.colors,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                let label = context.label || '';
+                                if (label) { label += ': '; }
+                                if (context.parsed !== null) {
+                                    label += context.parsed + ' trẻ';
                                 }
+                                return label;
                             }
                         }
                     }
                 }
-            });
-        }
+            }
+        });
+    }
 
-        // --- 2. BIỂU ĐỒ TỔNG QUAN DOANH THU (DOUGHNUT CHART) ---
-        if (revenueData && revenueData.data && revenueData.data.length > 0) {
-            const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-            new Chart(revenueCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: revenueData.labels,
-                    datasets: [{
-                        data: revenueData.data,
-                        backgroundColor: revenueData.colors,
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'top' },
-                         tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.label || '';
-                                    if (label) { label += ': '; }
-                                    if (context.parsed !== null) {
-                                        const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
-                                        const percentage = total === 0 ? '0%' : (context.parsed / total * 100).toFixed(1) + '%';
-                                        label += context.parsed + ' hóa đơn (' + percentage + ')';
-                                    }
-                                    return label;
+    // --- 2. BIỂU ĐỒ TỔNG QUAN DOANH THU (DOUGHNUT CHART) ---
+    if (revenueData && revenueData.data && revenueData.data.length > 0) {
+        const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+        new Chart(revenueCtx, {
+            type: 'doughnut',
+            data: {
+                labels: revenueData.labels,
+                datasets: [{
+                    data: revenueData.data,
+                    backgroundColor: revenueData.colors,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                let label = context.label || '';
+                                if (label) { label += ': '; }
+                                if (context.parsed !== null) {
+                                    const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                                    const percentage = total === 0 ? '0%' : (context.parsed / total * 100).toFixed(1) + '%';
+                                    label += context.parsed + ' hóa đơn (' + percentage + ')';
                                 }
+                                return label;
                             }
                         }
                     }
                 }
-            });
-        }
+            }
+        });
+    }
 
-        // --- 3. BIỂU ĐỒ CÂN NẶNG TRUNG BÌNH (LINE CHART) ---
-        if (weightData && weightData.data && weightData.data.length > 0) {
-            const weightCtx = document.getElementById('weightChart').getContext('2d');
-            new Chart(weightCtx, {
-                type: 'line',
-                data: {
-                    labels: weightData.labels,
-                    datasets: [{
-                        label: weightData.title,
-                        data: weightData.data,
-                        borderColor: '#1e90ff',
-                        backgroundColor: 'rgba(30, 144, 255, 0.2)',
-                        tension: 0.3,
-                        fill: true,
-                        pointBackgroundColor: '#1e90ff',
-                        pointBorderColor: '#fff',
-                        pointHoverBackgroundColor: '#fff',
-                        pointHoverBorderColor: '#1e90ff'
-                    }]
+    // --- 3. BIỂU ĐỒ CÂN NẶNG TRUNG BÌNH (LINE CHART) ---
+    if (weightData && weightData.data && weightData.data.length > 0) {
+        const weightCtx = document.getElementById('weightChart').getContext('2d');
+        new Chart(weightCtx, {
+            type: 'line',
+            data: {
+                labels: weightData.labels,
+                datasets: [{
+                    label: weightData.title,
+                    data: weightData.data,
+                    borderColor: '#1e90ff',
+                    backgroundColor: 'rgba(30, 144, 255, 0.2)',
+                    tension: 0.3,
+                    fill: true,
+                    pointBackgroundColor: '#1e90ff',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#1e90ff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: 'top' },
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: true, position: 'top' },
-                    },
-                    scales: {
-                        x: { title: { display: true, text: 'Ngày' } },
-                        y: { title: { display: true, text: 'Cân nặng (kg)' } }
-                    }
+                scales: {
+                    x: { title: { display: true, text: 'Ngày' } },
+                    y: { title: { display: true, text: 'Cân nặng (kg)' } }
                 }
-            });
-        }
+            }
+        });
+    }
     });
 </script>
 
@@ -208,4 +211,6 @@
         margin: auto;
     }
 </style>
+
+{% include 'layout/message.html' %}
 {% endblock %}

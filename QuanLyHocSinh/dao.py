@@ -3,10 +3,137 @@
 
 import hashlib
 from datetime import datetime, date
+from functools import wraps
+from flask_login import current_user
+from flask import redirect, abort
 
 from QuanLyHocSinh import db
 from QuanLyHocSinh.model import User, Student, Class, HealthRecord, Invoice, SystemConfig, MealAttendance
-from QuanLyHocSinh.ultils import ultils
+from sqlalchemy import or_, extract, func
+
+
+# ==================== HELPER FUNCTIONS ====================
+def safe_int(value, default=0):
+    """Safely convert to int with default value"""
+    try:
+        return int(value) if value is not None else default
+    except (ValueError, TypeError):
+        return default
+
+
+def safe_float(value, default=0.0):
+    """Safely convert to float with default value"""
+    try:
+        return float(value) if value is not None else default
+    except (ValueError, TypeError):
+        return default
+
+
+def format_datetime(dt, format='%d/%m/%Y'):
+    """Format datetime safely"""
+    if not dt:
+        return ''
+    try:
+        return dt.strftime(format)
+    except:
+        return ''
+
+
+def format_currency(amount):
+    """Format amount as Vietnamese currency"""
+    if amount is None:
+        return "0 đ"
+    try:
+        return f"{int(amount):,} đ".replace(',', '.')
+    except:
+        return "0 đ"
+
+
+def paginate(query, page=1, page_size=10):
+    """
+    Generic pagination helper
+    
+    Returns:
+        Dict with items, total, page, page_size, total_pages
+    """
+    page = max(1, page)
+    page_size = max(1, page_size)
+    
+    total = query.count()
+    items = query.limit(page_size).offset((page - 1) * page_size).all()
+    
+    return {
+        'items': items,
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': (total + page_size - 1) // page_size if total > 0 else 1
+    }
+
+
+def teacher_required(f):
+    """Decorator combining login_required + teacher validation"""
+    from flask_login import login_required
+    
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect('/login')
+        
+        class_id, _ = get_teacher_class_info(current_user.id)
+        if not class_id:
+            abort(403, "Giáo viên chưa được phân công lớp học")
+        
+        return f(*args, **kwargs)
+    
+    return decorated_function
+
+
+def get_date_range(year, month):
+    """Get first and last day of a month"""
+    import calendar
+    
+    first_day = date(year, month, 1)
+    last_day_num = calendar.monthrange(year, month)[1]
+    last_day = date(year, month, last_day_num)
+    
+    return first_day, last_day
+
+
+def build_search_filter(model, search_term, *fields):
+    """Build OR filter for searching across multiple fields"""
+    if not search_term or not fields:
+        return None
+    
+    filters = []
+    for field_name in fields:
+        field = getattr(model, field_name, None)
+        if field is not None:
+            filters.append(field.contains(search_term))
+    
+    return or_(*filters) if filters else None
+
+
+# ==================== BASE QUERY BUILDERS ====================
+def _base_student_query(class_id=None, active_only=True):
+    """
+    Base query for students with common filters
+    
+    Args:
+        class_id: Filter by class ID
+        active_only: Only return active students
+        
+    Returns:
+        SQLAlchemy query
+    """
+    query = Student.query
+    if active_only:
+        query = query.filter_by(active=True)
+    if class_id:
+        query = query.filter_by(class_id=class_id)
+    return query
+
 
 
 # ==================== USER FUNCTIONS ====================
@@ -117,13 +244,11 @@ def load_students(class_id=None, kw=None, page=1, page_size=10):
 def count_students(class_id=None):
     """
     Đếm số lượng học sinh
+    
+    OPTIMIZED: Use direct query instead of loading all students
     """
-    students = ultils.load_students()
-
-    if class_id:
-        students = [s for s in students if s.get('class_id') == int(class_id)]
-
-    return len(students)
+    query = _base_student_query(class_id=class_id, active_only=True)
+    return query.count()
 
 
 def add_student(student_data):
@@ -241,7 +366,8 @@ def build_student_view(
                 {
                     'weight': record.weight,
                     'temp': record.bodyTemperature,
-                    'note': record.note
+                    'note': record.note,
+                    'date': record.recordingDate  # Add date field for display
                 } if record else {}
             )
 
@@ -347,13 +473,55 @@ def load_students_with_health(
 
 
 
-def get_today_health_records():
-    today = date.today()
-    records = db.session.query(HealthRecord).filter(
-        func.date(HealthRecord.recordingDate) == today
-    ).all()
-
+def get_latest_health_records(student_ids=None):
+    """
+    Lấy bản ghi sức khỏe MỚI NHẤT của mỗi học sinh
+    (thay vì chỉ lấy hôm nay)
+    
+    Args:
+        student_ids: Optional list of student IDs to filter
+    Returns:
+        Dict {student_id: HealthRecord}
+    """
+    from sqlalchemy import func
+    
+    # Subquery: Lấy ngày ghi nhận mới nhất cho mỗi học sinh
+    latest_dates = (
+        db.session.query(
+            HealthRecord.student_id,
+            func.max(HealthRecord.recordingDate).label('max_date')
+        )
+        .filter(HealthRecord.active == True)
+    )
+    
+    if student_ids:
+        latest_dates = latest_dates.filter(HealthRecord.student_id.in_(student_ids))
+    
+    latest_dates = latest_dates.group_by(HealthRecord.student_id).subquery()
+    
+    # Join để lấy bản ghi đầy đủ
+    records = (
+        db.session.query(HealthRecord)
+        .join(
+            latest_dates,
+            db.and_(
+                HealthRecord.student_id == latest_dates.c.student_id,
+                HealthRecord.recordingDate == latest_dates.c.max_date
+            )
+        )
+        .filter(HealthRecord.active == True)
+        .all()
+    )
+    
     return {r.student_id: r for r in records}
+
+
+# Giữ lại hàm cũ để tương thích ngược (nếu có code khác gọi)
+def get_today_health_records():
+    """
+    DEPRECATED: Sử dụng get_latest_health_records() thay thế
+    """
+    return get_latest_health_records()
 
 
 def count_students_with_health_record(teacher_id, date):
@@ -392,14 +560,15 @@ def build_health_student_view(students, records_by_student):
     result = []
 
     for s in students:
-        record = records_by_student.get(s.id)
+        health_record = records_by_student.get(s.id)
 
         current_record = {}
-        if record:
+        if health_record:
             current_record = {
-                'weight': record.weight,
-                'temp': record.bodyTemperature,
-                'note': record.note
+                'weight': health_record.weight,
+                'temp': health_record.bodyTemperature,
+                'note': health_record.note or '',
+                'date': health_record.recordingDate  # Add date field
             }
 
         result.append({
@@ -450,7 +619,7 @@ def save_health_record(student_id, record_date, weight, temp, note):
 
 # ==================== MEAL ATTENDANCE FUNCTIONS ====================
 
-def update_meal_attendance(student_id, date, ate_today, teacher_id, commit=True):
+def update_meal_attendance(student_id, date, ate_today, teacher_id, note=None, commit=True):
     # Chuẩn hoá date
     if isinstance(date, str):
         date = datetime.strptime(date, '%Y-%m-%d').date()
@@ -468,9 +637,12 @@ def update_meal_attendance(student_id, date, ate_today, teacher_id, commit=True)
                 student_id=student_id,
                 attendance_date=datetime.combine(date, datetime.min.time()),
                 created_by=teacher_id,
-                note=None
+                note=note
             )
             db.session.add(record)
+        else:
+            # Cập nhật note nếu record đã tồn tại
+            record.note = note
     else:
         # ❌ KHÔNG ĂN → xoá record nếu tồn tại
         if record:
@@ -498,65 +670,584 @@ def is_ate_today(student_id, date):
     ).first() is not None
 
 
+def get_meal_dates(student_id, month, year):
+    """
+    Lấy danh sách các ngày mà học sinh đã ăn trong tháng
+    
+    Args:
+        student_id: ID của học sinh
+        month: Tháng
+        year: Năm
+        
+    Returns:
+        List of date objects
+    """
+    records = db.session.query(MealAttendance.attendance_date).filter(
+        MealAttendance.student_id == student_id,
+        extract('month', MealAttendance.attendance_date) == month,
+        extract('year', MealAttendance.attendance_date) == year
+    ).order_by(MealAttendance.attendance_date.asc()).all()
+    
+    return [r[0].date() for r in records]
+
+
+
+
+def get_week_dates(week_offset=0):
+    """
+    Lấy danh sách các ngày trong tuần (Thứ 2 -> Chủ nhật)
+    
+    Args:
+        week_offset: 0 = tuần hiện tại, -1 = tuần trước, +1 = tuần sau
+        
+    Returns:
+        List of date objects [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
+    """
+    from datetime import timedelta
+    
+    today = date.today()
+    # Calculate Monday of current week (weekday() returns 0=Mon, 6=Sun)
+    monday = today - timedelta(days=today.weekday())
+    
+    # Add week offset
+    monday = monday + timedelta(weeks=week_offset)
+    
+    # Generate 7 days starting from Monday
+    return [monday + timedelta(days=i) for i in range(7)]
+
+
+def get_weekly_meal_attendance(student_ids, week_dates):
+    """
+    Lấy dữ liệu điểm danh bữa ăn cho nhiều học sinh trong cả tuần
+    
+    Args:
+        student_ids: List of student IDs
+        week_dates: List of 7 date objects
+        
+    Returns:
+        Dict {student_id: {date_str: True/False}}
+    """
+    if not student_ids or not week_dates:
+        return {}
+    
+    start_date = week_dates[0]
+    end_date = week_dates[-1]
+    
+    # Query all meal attendance records for this week
+    records = db.session.query(MealAttendance).filter(
+        MealAttendance.student_id.in_(student_ids),
+        func.date(MealAttendance.attendance_date) >= start_date,
+        func.date(MealAttendance.attendance_date) <= end_date
+    ).all()
+    
+    # Build result dict
+    result = {}
+    for student_id in student_ids:
+        result[student_id] = {}
+        for day in week_dates:
+            result[student_id][day.isoformat()] = False
+    
+    # Mark days with attendance
+    for record in records:
+        student_id = record.student_id
+        attendance_date = record.attendance_date.date().isoformat()
+        if student_id in result and attendance_date in result[student_id]:
+            result[student_id][attendance_date] = True
+    
+    return result
+
+
+def save_weekly_meal_attendance(attendance_data, teacher_id):
+    """
+    Lưu dữ liệu điểm danh bữa ăn cho cả tuần
+    
+    Args:
+        attendance_data: List of dicts [{student_id, date, ate, note (optional)}]
+        teacher_id: ID của giáo viên tạo bản ghi
+    """
+    for item in attendance_data:
+        student_id = item['student_id']
+        date_str = item['date']
+        ate = item['ate']
+        note = item.get('note', '')  # Get note if provided
+        
+        update_meal_attendance(
+            student_id=student_id,
+            date=date_str,
+            ate_today=ate,
+            teacher_id=teacher_id,
+            note=note,
+            commit=False
+        )
+    
+    db.session.commit()
+
+
+def export_meal_attendance_excel(student_ids, month, year, class_name=""):
+    """
+    Xuất dữ liệu điểm danh ăn ra file Excel với định dạng đẹp
+    
+    Args:
+        student_ids: List of student IDs
+        month: Tháng
+        year: Năm
+        class_name: Tên lớp (optional)
+    
+    Returns:
+        File path of generated Excel file
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from datetime import datetime, timedelta
+    import calendar
+    import os
+    
+    # Create workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Điểm danh tháng {month}"
+    
+    # Get number of days in month
+    num_days = calendar.monthrange(year, month)[1]
+    
+    # Get student data
+    students = Student.query.filter(Student.id.in_(student_ids)).order_by(Student.id).all()
+    
+    # Get all attendance data for the month
+    start_date = datetime(year, month, 1).date()
+    end_date = datetime(year, month, num_days).date()
+    
+    attendance_records = db.session.query(MealAttendance).filter(
+        MealAttendance.student_id.in_(student_ids),
+        func.date(MealAttendance.attendance_date) >= start_date,
+        func.date(MealAttendance.attendance_date) <= end_date
+    ).all()
+    
+    # Build attendance dict
+    attendance_dict = {}
+    for record in attendance_records:
+        student_id = record.student_id
+        day = record.attendance_date.day
+        if student_id not in attendance_dict:
+            attendance_dict[student_id] = set()
+        attendance_dict[student_id].add(day)
+    
+    # Styling
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    center_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Title
+    title_text = f"BẢNG ĐIỂM DANH BỮA ĂN THÁNG {month}/{year}"
+    if class_name:
+        title_text += f" - {class_name}"
+    ws.merge_cells(f'A1:{get_column_letter(num_days + 3)}1')
+    title_cell = ws['A1']
+    title_cell.value = title_text
+    title_cell.font = Font(bold=True, size=14, color="FFFFFF")
+    title_cell.fill = PatternFill(start_color="203864", end_color="203864", fill_type="solid")
+    title_cell.alignment = center_alignment
+    ws.row_dimensions[1].height = 25
+    
+    # Headers - Row 2: STT and Student Name
+    ws['A2'] = "STT"
+    ws['B2'] = "Họ và tên"
+    
+    # Merge STT and Name cells for rows 2-3
+    ws.merge_cells('A2:A3')
+    ws.merge_cells('B2:B3')
+    
+    # Day numbers - Row 2
+    for day in range(1, num_days + 1):
+        col = get_column_letter(day + 2)
+        ws[f'{col}2'] = day
+        ws[f'{col}2'].font = header_font
+        ws[f'{col}2'].fill = header_fill
+        ws[f'{col}2'].alignment = center_alignment
+        ws[f'{col}2'].border = thin_border
+        ws.column_dimensions[col].width = 4
+    
+    # Day of week - Row 3
+    day_names_short = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+    thick_border_right = Border(
+        left=Side(style='thin'),
+        right=Side(style='medium'),  # Thick border on right
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    for day in range(1, num_days + 1):
+        col = get_column_letter(day + 2)
+        date_obj = datetime(year, month, day).date()
+        weekday = date_obj.weekday()  # 0=Monday, 6=Sunday
+        ws[f'{col}3'] = day_names_short[weekday]
+        ws[f'{col}3'].font = Font(bold=True, color="FFFFFF", size=9)
+        ws[f'{col}3'].fill = PatternFill(start_color="5B9BD5", end_color="5B9BD5", fill_type="solid")
+        ws[f'{col}3'].alignment = center_alignment
+        
+        # Add thick border on Sunday to separate weeks
+        if weekday == 6:  # Sunday
+            ws[f'{col}2'].border = thick_border_right
+            ws[f'{col}3'].border = thick_border_right
+        else:
+            ws[f'{col}3'].border = thin_border
+    
+    # Total column
+    total_col = get_column_letter(num_days + 3)
+    ws.merge_cells(f'{total_col}2:{total_col}3')
+    ws[f'{total_col}2'] = "Tổng"
+    ws[f'{total_col}2'].font = header_font
+    ws[f'{total_col}2'].fill = header_fill
+    ws[f'{total_col}2'].alignment = center_alignment
+    ws[f'{total_col}2'].border = thin_border
+    ws.column_dimensions[total_col].width = 8
+    
+    # Header columns styling
+    ws['A2'].font = header_font
+    ws['A2'].fill = header_fill
+    ws['A2'].alignment = center_alignment
+    ws['A2'].border = thin_border    
+    ws.column_dimensions['A'].width = 6
+    
+    ws['B2'].font = header_font
+    ws['B2'].fill = header_fill
+    ws['B2'].alignment = center_alignment
+    ws['B2'].border = thin_border
+    ws.column_dimensions['B'].width = 25
+    
+    ws.row_dimensions[2].height = 20
+    ws.row_dimensions[3].height = 18
+    
+    # Student data (starting from row 4)
+    for idx, student in enumerate(students, start=1):
+        row = idx + 3  # Start from row 4
+        
+        # STT
+        ws[f'A{row}'] = idx
+        ws[f'A{row}'].alignment = center_alignment
+        ws[f'A{row}'].border = thin_border
+        
+        # Student name
+        student_name = f"{student.lastName} {student.firstName}"
+        ws[f'B{row}'] = student_name
+        ws[f'B{row}'].alignment = Alignment(horizontal="left", vertical="center")
+        ws[f'B{row}'].border = thin_border
+        
+        # Attendance days
+        student_attendance = attendance_dict.get(student.id, set())
+        total_days = 0
+        
+        for day in range(1, num_days + 1):
+            col = get_column_letter(day + 2)
+            date_obj = datetime(year, month, day).date()
+            weekday = date_obj.weekday()
+            
+            if day in student_attendance:
+                ws[f'{col}{row}'] = "✓"
+                ws[f'{col}{row}'].font = Font(color="00B050", bold=True, size=12)
+                total_days += 1
+            else:
+                ws[f'{col}{row}'] = ""
+            
+            ws[f'{col}{row}'].alignment = center_alignment
+            
+            # Add thick border on Sunday to separate weeks
+            if weekday == 6:  # Sunday
+                ws[f'{col}{row}'].border = thick_border_right
+            else:
+                ws[f'{col}{row}'].border = thin_border
+        
+        # Total
+        ws[f'{total_col}{row}'] = total_days
+        ws[f'{total_col}{row}'].alignment = center_alignment
+        ws[f'{total_col}{row}'].border = thin_border
+        ws[f'{total_col}{row}'].font = Font(bold=True)
+        
+        ws.row_dimensions[row].height = 18
+    
+    # Return as BytesIO instead of saving to disk
+    from io import BytesIO
+    
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    return output
+
+
+def export_tuition_report_excel(financial_records, month, year, class_name=""):
+    """
+    Xuất báo cáo chi phí học phí ra file Excel
+    
+    Args:
+        financial_records: List of financial record dicts
+        month: Tháng
+        year: Năm
+        class_name: Tên lớp (optional)
+    
+    Returns:
+        File path of generated Excel file
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    import os
+    
+    # Create workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Chi phí tháng {month}"
+    
+    # Styling
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    center_alignment = Alignment(horizontal="center", vertical="center")
+    right_alignment = Alignment(horizontal="right", vertical="center")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Title
+    title_text = f"BÁO CÁO CHI PHÍ HỌC PHÍ THÁNG {month}/{year}"
+    if class_name:
+        title_text += f" - {class_name}"
+    ws.merge_cells('A1:H1')
+    title_cell = ws['A1']
+    title_cell.value = title_text
+    title_cell.font = Font(bold=True, size=14, color="FFFFFF")
+    title_cell.fill = PatternFill(start_color="203864", end_color="203864", fill_type="solid")
+    title_cell.alignment = center_alignment
+    ws.row_dimensions[1].height = 25
+    
+    # Headers
+    headers = ["STT", "Tên học sinh", "Phụ huynh", "Học phí", "Số ngày ăn", "Chi phí ăn", "Tổng cộng", "Trạng thái"]
+    for col_num, header in enumerate(headers, start=1):
+        cell = ws.cell(row=2, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_alignment
+        cell.border = thin_border
+    
+    # Column widths
+    ws.column_dimensions['A'].width = 6
+    ws.column_dimensions['B'].width = 25
+    ws.column_dimensions['C'].width = 20
+    ws.column_dimensions['D'].width = 15
+    ws.column_dimensions['E'].width = 12
+    ws.column_dimensions['F'].width = 15
+    ws.column_dimensions['G'].width = 15
+    ws.column_dimensions['H'].width = 15
+    ws.row_dimensions[2].height = 20
+    
+    # Data rows
+    total_tuition = 0
+    total_meal = 0
+    total_all = 0
+    paid_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+    unpaid_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+    
+    for idx, record in enumerate(financial_records, start=1):
+        row = idx + 2
+        
+        # STT
+        ws[f'A{row}'] = idx
+        ws[f'A{row}'].alignment = center_alignment
+        ws[f'A{row}'].border = thin_border
+        
+        # Student name
+        ws[f'B{row}'] = record['student_name']
+        ws[f'B{row}'].alignment = Alignment(horizontal="left", vertical="center")
+        ws[f'B{row}'].border = thin_border
+        
+        # Parent name
+        ws[f'C{row}'] = record['parent_name']
+        ws[f'C{row}'].alignment = Alignment(horizontal="left", vertical="center")
+        ws[f'C{row}'].border = thin_border
+        
+        # Tuition
+        ws[f'D{row}'] = record['tuition_fee']
+        ws[f'D{row}'].alignment = right_alignment
+        ws[f'D{row}'].border = thin_border
+        ws[f'D{row}'].number_format = '#,##0'
+        
+        # Meal days
+        ws[f'E{row}'] = record['meal_days']
+        ws[f'E{row}'].alignment = center_alignment
+        ws[f'E{row}'].border = thin_border
+        
+        # Meal cost
+        ws[f'F{row}'] = record['total_meal_cost']
+        ws[f'F{row}'].alignment = right_alignment
+        ws[f'F{row}'].border = thin_border
+        ws[f'F{row}'].number_format = '#,##0'
+        
+        # Total
+        ws[f'G{row}'] = record['total_amount']
+        ws[f'G{row}'].alignment = right_alignment
+        ws[f'G{row}'].border = thin_border
+        ws[f'G{row}'].number_format = '#,##0'
+        ws[f'G{row}'].font = Font(bold=True)
+        
+        # Status
+        status_text = "Đã đóng" if record['is_paid'] else "Chưa đóng"
+        ws[f'H{row}'] = status_text
+        ws[f'H{row}'].alignment = center_alignment
+        ws[f'H{row}'].border = thin_border
+        ws[f'H{row}'].font = Font(bold=True)
+        if record['is_paid']:
+            ws[f'H{row}'].fill = paid_fill
+        else:
+            ws[f'H{row}'].fill = unpaid_fill
+        
+        # Accumulate totals
+        total_tuition += record['tuition_fee']
+        total_meal += record['total_meal_cost']
+        total_all += record['total_amount']
+        
+        ws.row_dimensions[row].height = 18
+    
+    # Total row
+    total_row = len(financial_records) + 3
+    ws.merge_cells(f'A{total_row}:C{total_row}')
+    ws[f'A{total_row}'] = "TỔNG CỘNG"
+    ws[f'A{total_row}'].font = Font(bold=True, size=12)
+    ws[f'A{total_row}'].alignment = center_alignment
+    ws[f'A{total_row}'].border = thin_border
+    ws[f'A{total_row}'].fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    
+    ws[f'D{total_row}'] = total_tuition
+    ws[f'D{total_row}'].font = Font(bold=True, size=11)
+    ws[f'D{total_row}'].alignment = right_alignment
+    ws[f'D{total_row}'].border = thin_border
+    ws[f'D{total_row}'].number_format = '#,##0'
+    ws[f'D{total_row}'].fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    
+    ws[f'E{total_row}'] = ""
+    ws[f'E{total_row}'].border = thin_border
+    ws[f'E{total_row}'].fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    
+    ws[f'F{total_row}'] = total_meal
+    ws[f'F{total_row}'].font = Font(bold=True, size=11)
+    ws[f'F{total_row}'].alignment = right_alignment
+    ws[f'F{total_row}'].border = thin_border
+    ws[f'F{total_row}'].number_format = '#,##0'
+    ws[f'F{total_row}'].fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    
+    ws[f'G{total_row}'] = total_all
+    ws[f'G{total_row}'].font = Font(bold=True, size=12, color="FF0000")
+    ws[f'G{total_row}'].alignment = right_alignment
+    ws[f'G{total_row}'].border = thin_border
+    ws[f'G{total_row}'].number_format = '#,##0'
+    ws[f'G{total_row}'].fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    
+    ws[f'H{total_row}'] = ""
+    ws[f'H{total_row}'].border = thin_border
+    ws[f'H{total_row}'].fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    
+    ws.row_dimensions[total_row].height = 22
+    
+    # Return as BytesIO instead of saving to disk
+    from io import BytesIO
+    
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    return output
+
+
+
+
 # ==================== FINANCIAL FUNCTIONS ====================
-def load_financial_records(month=None, year=None, status=None, keyword=None):
+def load_financial_records(month=None, year=None, status=None, keyword=None, class_id=None):
     """
-    Tải danh sách hồ sơ tài chính (hóa đơn học phí)
-    status: None / "paid" / "unpaid"
-    keyword: tìm kiếm theo tên học sinh hoặc phụ huynh
+    Tải danh sách học sinh trong lớp và tính toán học phí
+    - Hiển thị TẤT CẢ học sinh trong lớp (không cần có invoice sẵn)
+    - Số bữa ăn lấy từ meal_attendance
+    - Invoice chỉ được tạo khi thanh toán
     """
-    base_tuition = get_system_config('tuition', default=500000)
-    meal_cost_per_day = get_system_config('mealFee', default=50000)
-
-    query = db.session.query(Invoice, Student).join(Student, Student.id == Invoice.student_id).filter(Invoice.active == True)
-
-    if month:
-        query = query.filter(Invoice.month == month)
-    if year:
-        query = query.filter(Invoice.year == year)
-
-    # Lấy tất cả trước, sau đó filter keyword và status
-    invoices = query.all()
+    from datetime import date as datetime_date
+    
+    base_tuition = get_system_config('HOC_PHI_CO_BAN', default=1500000)
+    meal_cost_per_day = get_system_config('TIEN_AN_MOT_NGAY', default=30000)
+    
+    # Nếu không truyền month/year, dùng tháng hiện tại
+    if not month or not year:
+        today = datetime_date.today()
+        month = month or today.month
+        year = year or today.year
+    
+    # Lấy TẤT CẢ học sinh trong lớp
+    query = db.session.query(Student).filter(Student.active == True)
+    
+    if class_id:
+        query = query.filter(Student.class_id == class_id)
+    
+    students = query.all()
     financial_records = []
-
-    for inv, student in invoices:
+    
+    for student in students:
+        # Filter keyword (chỉ tìm kiếm theo tên học sinh)
+        if keyword:
+            kw = keyword.lower()
+            student_name = f"{student.lastName} {student.firstName}".lower()
+            if kw not in student_name:
+                continue
+        
+        # Tính số bữa ăn từ meal_attendance
         meal_days = count_meal_days(student.id, month, year)
-        tuition_fee = inv.tuition or base_tuition
-        meal_fee = inv.mealFee or meal_cost_per_day
+        
+        # Tính toán học phí
+        tuition_fee = base_tuition
+        meal_fee = meal_cost_per_day
         total_meal_cost = meal_days * meal_fee
-        total_amount = inv.total or (tuition_fee + total_meal_cost)
-        is_paid = inv.paymentDate is not None
-
-        # Filter trạng thái
+        total_amount = tuition_fee + total_meal_cost
+        
+        # Kiểm tra xem có invoice cho tháng này chưa
+        invoice = Invoice.query.filter_by(
+            student_id=student.id,
+            month=month,
+            year=year,
+            active=True
+        ).first()
+        
+        # Xác định trạng thái thanh toán
+        is_paid = invoice.paymentDate is not None if invoice else False
+        invoice_id = invoice.id if invoice else None
+        
+        # Filter theo status nếu có
         if status == "paid" and not is_paid:
             continue
         if status == "unpaid" and is_paid:
             continue
-
-        # Filter keyword (tên học sinh hoặc phụ huynh)
-        if keyword:
-            kw = keyword.lower()
-            student_name = f"{student.lastName} {student.firstName}".lower()
-            parent_name = (student.parentName or "").lower()
-            if kw not in student_name and kw not in parent_name:
-                continue
-
+        
         financial_records.append({
-            'invoice_id': inv.id,
+            'invoice_id': invoice_id,
             'student_id': student.id,
             'student_name': f"{student.lastName} {student.firstName}",
             'parent_name': student.parentName,
-            'month': inv.month,
-            'year': inv.year,
+            'month': month,
+            'year': year,
             'tuition_fee': tuition_fee,
             'meal_days': meal_days,
             'meal_fee_per_day': meal_fee,
             'total_meal_cost': total_meal_cost,
             'total_amount': total_amount,
             'is_paid': is_paid,
-            'payment_date': inv.paymentDate
+            'payment_date': invoice.paymentDate if invoice else None
         })
-
+    
     return financial_records
 
 
@@ -930,3 +1621,74 @@ def get_average_weight_chart_data(all_health_records):
         'data': data,
         'title': "Cân nặng trung bình"
     }
+
+
+# ==================== STATISTICS FUNCTIONS ====================
+
+def get_class_enrollment_stats():
+    """
+    Lấy thống kê sĩ số từng lớp
+    Returns: List of {class_name, student_count}
+    """
+    from sqlalchemy import func
+    
+    results = db.session.query(
+        Class.name,
+        func.count(Student.id).label('count')
+    ).join(
+        Student, Class.id == Student.class_id, isouter=True
+    ).filter(
+        Class.active == True
+    ).group_by(Class.id, Class.name).order_by(Class.name).all()
+    
+    return [{'class_name': name, 'student_count': count} for name, count in results]
+
+
+def get_monthly_revenue_stats(start_month=None, end_month=None, year=None):
+    """
+    Lấy thống kê doanh thu theo tháng
+    Args:
+        start_month: Tháng bắt đầu (1-12)
+        end_month: Tháng kết thúc (1-12)
+        year: Năm (default: năm hiện tại)
+    Returns: List of {month, year, revenue}
+    """
+    from datetime import date as dt
+    from sqlalchemy import func
+    
+    if not year:
+        year = dt.today().year
+    
+    # Initialize all months with 0 revenue
+    all_months = []
+    start = start_month if start_month else 1
+    end = end_month if end_month else 12
+    
+    for month in range(start, end + 1):
+        all_months.append({'month': month, 'year': year, 'revenue': 0})
+    
+   # Get actual revenue data (only from paid invoices)
+    query = db.session.query(
+        Invoice.month,
+        Invoice.year,
+        func.sum(Invoice.total).label('revenue')
+    ).filter(
+        Invoice.active == True,
+        Invoice.year == year,
+        Invoice.paymentDate.isnot(None)  # Chỉ tính đã thanh toán
+    )
+    
+    if start_month:
+        query = query.filter(Invoice.month >= start_month)
+    if end_month:
+        query = query.filter(Invoice.month <= end_month)
+    
+    results = query.group_by(Invoice.month, Invoice.year).order_by(Invoice.month).all()
+    
+    # Update months with actual data
+    revenue_dict = {m: float(r or 0) for m, y, r in results}
+    for item in all_months:
+        if item['month'] in revenue_dict:
+            item['revenue'] = revenue_dict[item['month']]
+    
+    return all_months
