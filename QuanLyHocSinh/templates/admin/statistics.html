@@ -1,78 +1,141 @@
-{% extends "admin/layout/base.html" %}
+{% extends 'admin/master.html' %}
 
-{% block title %}Thống kê Tổng quan{% endblock %}
+{% block body %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/styles.css') }}">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
 
-{% block content %}
 <div class="page-content-wrapper">
 
-    <header>
+    <style>
+    @media print {
+        /* Ẩn tất cả phần không cần in */
+        .no-print {
+            display: none !important;
+        }
+            * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+        /* Hiển thị stats-grid và charts-grid khi in */
+        .printable, .printable * {
+            visibility: visible !important;
+        }
+
+        /* Bố trí các phần printable chiếm toàn trang */
+        .charts-grid, .stats-grid {
+            position: relative;
+            left: 0;
+            top: 0;
+            width: 100%;
+        }
+    }
+    </style>
+
+    <!-- ================= HEADER + PRINT BUTTON ================= -->
+    <header class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>Thống kê tổng quan</h2>
-        <p class="subtitle">Báo cáo và phân tích dữ liệu toàn trường</p>
+        <button onclick="window.print()" class="btn btn-primary">In báo cáo</button>
     </header>
 
-    <div class="stats-grid" style="margin-top: 20px;">
-        
-        <div class="stat-box bg-rose">
-            <div class="stat-icon-wrapper">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-            </div>
-            <p class="stat-label">Tổng học sinh</p>
-            <p class="stat-value">58</p>
-        </div>
+    <!-- ================= FILTER ================= -->
+    <div class="filter-wrapper printable" style="margin-bottom: 20px; display:flex; gap:15px; align-items:center;">
+        <form method="get" id="filterForm">
+            <label for="class_filter">Lớp:</label>
+            <select name="class_id" id="class_filter" onchange="document.getElementById('filterForm').submit()">
+                <option value="">-- Tất cả --</option>
+                {% for c in classes %}
+                    <option value="{{ c.id }}" {% if request.args.get('class_id')|int == c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
 
-        <div class="stat-box bg-green">
-            <div class="stat-icon-wrapper">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav"><line x1="12" x2="12" y1="2" y2="22"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-            </div>
-            <p class="stat-label">Doanh thu tháng</p>
-            <p class="stat-value">174M</p>
-        </div>
+            <label for="month_filter">Tháng:</label>
+            <select name="month" id="month_filter" onchange="document.getElementById('filterForm').submit()">
+                <option value="">-- Tất cả --</option>
+                {% for m in range(1,13) %}
+                    <option value="{{ m }}" {% if request.args.get('month')|int == m %}selected{% endif %}>Tháng {{ m }}</option>
+                {% endfor %}
+            </select>
 
-        <div class="stat-box bg-blue">
-            <div class="stat-icon-wrapper">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"></path></svg>
-            </div>
-            <p class="stat-label">Số lớp</p>
-            <p class="stat-value">3</p>
-        </div>
-
-        <div class="stat-box bg-yellow">
-            <div class="stat-icon-wrapper">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 22 10"></polyline></svg>
-            </div>
-            <p class="stat-label">Giáo viên</p>
-            <p class="stat-value">3</p>
-        </div>
+            <label for="year_filter">Năm:</label>
+            <select name="year" id="year_filter" onchange="document.getElementById('filterForm').submit()">
+                <option value="">-- Tất cả --</option>
+                {% for y in years %}
+                    <option value="{{ y }}" {% if request.args.get('year')|int == y %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </form>
     </div>
 
-    <div class="charts-grid">
-        
+    <!-- ================= STATS ================= -->
+    <div class="stats-grid printable" >
+
+        <div class="stat-box bg-rose">
+            <div class="stat-icon-wrapper"></div>
+            <p class="stat-label">Tổng học sinh</p>
+            <p class="stat-value">{{ total_students }}</p>
+        </div>
+
+        {% if not request.args.get('class_id') %}
+        <div class="stat-box bg-blue">
+            <div class="stat-icon-wrapper"></div>
+            <p class="stat-label">Số lớp</p>
+            <p class="stat-value">{{ total_classes }}</p>
+        </div>
+        {% endif %}
+
+        <div class="stat-box bg-yellow">
+            <div class="stat-icon-wrapper"></div>
+            <p class="stat-label">Doanh thu</p>
+            <p class="stat-value">{{ "{:,}".format(total_revenue | int) }} VND</p>
+        </div>
+
+    </div>
+
+    <!-- ================= CHARTS ================= -->
+    <div class="charts-grid printable">
+
+        <!-- Pie chart nam/nữ -->
         <div class="content-card chart-container">
-            <h3 class="chart-title">Tỷ lệ nam/nữ toàn trường</h3>
+            <h4 class="chart-title">Tỷ lệ nam/nữ</h4>
             <div class="chart-body" style="display: flex; flex-direction: column; align-items: center; gap: 20px;">
-                
                 <div class="pie-chart-mock-custom" style="
-                    width: 200px; 
-                    height: 200px; 
+                    width: 200px;
+                    height: 200px;
                     border-radius: 50%;
-                    /* Sử dụng màu Blue (#3B82F6) cho Nam và Rose (#F43F5E) cho Nữ */
                     background: conic-gradient(
-                        var(--color-male-text) 0% 55%,
-                        var(--color-primary-start) 55% 100%
+                        var(--color-male-text) 0% {{ gender_ratio.male / (gender_ratio.male + gender_ratio.female) * 100 }}%,
+                        var(--color-primary-start) {{ gender_ratio.male / (gender_ratio.male + gender_ratio.female) * 100 }}% 100%
                     );">
-                </div> 
-                
+                </div>
                 <div class="chart-legend">
-                    <p style="color: var(--color-text-dark); margin-bottom: 5px;"><span class="legend-color" style="background-color: var(--color-male-text); display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;"></span> Nam: 55%</p>
-                    <p style="color: var(--color-text-dark);"><span class="legend-color" style="background-color: var(--color-primary-start); display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;"></span> Nữ: 45%</p>
+                    <p style="color: var(--color-text-dark); margin-bottom: 5px;">
+                        <span class="legend-color"
+                              style="background-color: var(--color-male-text); display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;"></span>
+                        Nam: {{ gender_ratio.male }}
+                    </p>
+                    <p style="color: var(--color-text-dark);">
+                        <span class="legend-color"
+                              style="background-color: var(--color-primary-start); display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;"></span>
+                        Nữ: {{ gender_ratio.female }}
+                    </p>
                 </div>
             </div>
         </div>
 
+        <!-- Bar chart sĩ số theo lớp -->
         <div class="content-card chart-container">
-            <h3 class="chart-title">Sĩ số theo lớp</h3>
-            <div class="chart-body chart-placeholder" style="height: 350px; border: none; background: none;">
-                <canvas id="classSizeChart"></canvas> 
+            <h4 class="chart-title">Sĩ số theo lớp</h4>
+            <div class="chart-body chart-placeholder" style="height: 350px;">
+                <canvas id="classSizeChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Bar chart doanh thu -->
+        <div class="content-card chart-container">
+            <h4 class="chart-title">Doanh thu theo tháng</h4>
+            <div class="chart-body chart-placeholder" style="height: 350px;">
+                <canvas id="revenueChart"></canvas>
             </div>
         </div>
 
@@ -80,44 +143,59 @@
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const ctx = document.getElementById('classSizeChart');
-        if (ctx) {
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    // Nhãn lớp giả định do không thấy trên ảnh
-                    labels: ['Lớp 1', 'Lớp 2', 'Lớp 3'], 
-                    datasets: [{
-                        label: 'Sĩ số',
-                        // Dữ liệu mô phỏng từ hình ảnh (khoảng 20, 24, 15)
-                        data: [20, 24, 15], 
-                        backgroundColor: 'rgba(148, 120, 224, 0.8)', // Màu tím nhẹ
-                        borderRadius: 6,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 24, // Phù hợp với trục Y của hình ảnh
-                            ticks: { stepSize: 6 } 
-                        },
-                        x: {
-                            grid: { display: false }
-                        }
-                    },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { mode: 'index', intersect: false }
-                    }
-                }
-            });
-        }
-    });
+document.addEventListener('DOMContentLoaded', function () {
+    // ----------------- Class size chart -----------------
+    const ctxClass = document.getElementById('classSizeChart');
+    if (ctxClass) {
+        const labels = {{class_sizes.keys() | list | tojson}};
+        const data = {{class_sizes.values() | list | tojson}};
+        new Chart(ctxClass, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Sĩ số',
+                    data: data,
+                    backgroundColor: 'rgba(148, 120, 224, 0.8)',
+                    borderRadius: 6,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {y: {beginAtZero: true}, x: {grid: {display: false}}},
+                plugins: {legend: {display: false}, tooltip: {mode: 'index', intersect: false}}
+            }
+        });
+    }
+
+    // ----------------- Revenue chart -----------------
+    const ctxRevenue = document.getElementById('revenueChart');
+    if (ctxRevenue) {
+        const labels = {{revenue_by_month.keys() | list | tojson}};
+        const data = {{revenue_by_month.values() | list | tojson}};
+        new Chart(ctxRevenue, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Doanh thu (VND)',
+                    data: data,
+                    backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                    borderRadius: 6,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {y: {beginAtZero: true}, x: {grid: {display: false}}},
+                plugins: {legend: {display: false}, tooltip: {mode: 'index', intersect: false}}
+            }
+        });
+    }
+});
 </script>
 
 {% endblock %}

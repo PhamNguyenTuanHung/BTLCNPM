@@ -35,8 +35,11 @@
     <div class="content-card full-width">
         <h3>Chi tiết Bữa ăn & Học phí</h3>
         <form method="get" class="filter-controls">
-            <input type="text" name="keyword" placeholder="Tìm kiếm theo tên trẻ hoặc phụ huynh..."
-                   value="{{ keyword }}" class="search-input">
+            <input type="text"
+                   name="keyword"
+                   placeholder="Tìm kiếm theo tên trẻ hoặc phụ huynh..."
+                   value="{{ keyword if keyword else '' }}"
+                   class="search-input">
 
             <select name="status" class="filter-select" onchange="this.form.submit()">
                 <option value="" {% if not selected_status %}selected{% endif %}>Tất cả</option>
@@ -125,6 +128,80 @@
             </table>
         </div>
     </div>
-
 </div>
+<script>
+    /* ================= TUITION ================= */
+    function payStudentTuition(btn) {
+        const card = btn.closest(".student-tuition-card");
+        const invoiceId = card?.dataset.invoiceId;
+
+        if (!invoiceId) return;
+
+        // 1. Xác nhận đóng học phí bằng SweetAlert2
+        Swal.fire({
+            title: 'Xác nhận thu phí?',
+            text: "Bạn có chắc chắn muốn xác nhận đóng học phí cho học sinh này?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Xác nhận đóng',
+            cancelButtonText: 'Hủy'
+        }).then((result) => {
+            if (result.isConfirmed) {
+
+                // Hiệu ứng Loading trên nút bấm
+                const originalText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang lưu...`;
+
+                fetch("/api/invoices/pay", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({invoice_id: invoiceId})
+                })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (!res.success) throw new Error(res.message);
+
+                        // ✅ 2. Thông báo thành công mượt mà
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Thành công!',
+                            text: 'Đã cập nhật trạng thái đóng học phí.',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+
+                        // Cập nhật trạng thái hiển thị trên giao diện
+                        const statusEl = card.querySelector(".tuition-status");
+                        if (statusEl) {
+                            statusEl.textContent = "Đã thanh toán";
+                            statusEl.classList.remove("text-danger", "status-unpaid");
+                            statusEl.classList.add("text-success", "status-paid");
+                        }
+
+                        // Chuyển nút bấm thành nút Xuất Hóa Đơn
+                        btn.parentElement.innerHTML = `
+                    <a href="/invoice/${invoiceId}"
+                       class="btn-action-fee btn-export-invoice">
+                        <i class="fas fa-file-invoice"></i> Xuất HĐ
+                    </a>
+                `;
+                    })
+                    .catch(err => {
+                        // ✅ 3. Thông báo lỗi bằng SweetAlert2
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Lỗi!',
+                            text: err.message || err
+                        });
+
+                        // Khôi phục lại nút nếu lỗi
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                    });
+            }
+        });
+    }</script>
 {% endblock %}

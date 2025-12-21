@@ -9,7 +9,7 @@
     <div class="control-panel-new">
         <div class="control-header-new">
             <div>
-                <h1 >Ghi nhận sức khỏe cho trẻ trong lớp</h1>
+                <h1>Ghi nhận sức khỏe cho trẻ trong lớp</h1>
             </div>
         </div>
 
@@ -33,7 +33,6 @@
             <form method="get" class="filter-controls">
 
 
-
                 <!-- Khối 2: Chọn ngày -->
                 <div class="filter-block">
                     <label for="record-date">Chọn ngày:</label>
@@ -42,7 +41,7 @@
                            value="{{ selected_date }}"
                            class="date-input">
                 </div>
-                 <!-- Khối 1: Tìm kiếm keyword -->
+                <!-- Khối 1: Tìm kiếm keyword -->
                 <div class="filter-block">
                     <input type="text" id="keyword" name="keyword"
                            placeholder="Tên trẻ hoặc phụ huynh"
@@ -61,6 +60,11 @@
                             nhật
                         </option>
                     </select>
+                </div>
+                <div class="filter-fever-box">
+                    <label>
+                        <input type="checkbox" id="filter-fever"> Chỉ trẻ sốt (≥ 37.5°C)
+                    </label>
                 </div>
 
             </form>
@@ -174,142 +178,174 @@
     </div>
 
 </div>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-    function updateHealth(btn) {
-        const card = btn.closest('.student-health-card');
-        if (!card) return;
+/**
+ * Lưu thông tin sức khỏe cho học sinh
+ */
+function updateHealth(btn) {
+    const card = btn.closest('.student-health-card');
+    if (!card) return;
 
-        const studentId = card.dataset.studentId;
-        const wasRecorded = card.dataset.recorded === "1";
+    const studentId = card.dataset.studentId;
+    const wasRecorded = card.dataset.recorded === "1";
 
-        const weightInput = card.querySelector('.input-weight');
-        const tempInput = card.querySelector('.input-temp');
-        const noteInput = card.querySelector('.input-note');
+    const weightInput = card.querySelector('.input-weight');
+    const tempInput = card.querySelector('.input-temp');
+    const noteInput = card.querySelector('.input-note');
 
-        const weight = weightInput.value;
-        const temp = tempInput.value;
-        const note = noteInput.value.trim();
+    const weight = weightInput.value;
+    const temp = tempInput.value;
+    const note = noteInput.value.trim();
 
-        // validate nhẹ
-        if (temp && (temp < 30 || temp > 45)) {
-            alert("Nhiệt độ không hợp lệ!");
-            return;
-        }
-
-        btn.disabled = true;
-        btn.textContent = "Đang lưu...";
-
-        fetch("/health-management", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                id: studentId,
-                weight,
-                temp,
-                note
-            })
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (!data.success) throw new Error("Save failed");
-
-                // ===== UPDATE UI =====
-                updateHealthUI(card, temp);
-
-                // ===== UPDATE PROGRESS (CHỈ LẦN ĐẦU) =====
-                if (!wasRecorded) {
-                    const completedEl = document.getElementById("completed-count");
-                    const totalEl = document.getElementById("total-count");
-                    const progressBar = document.getElementById("progress-bar");
-
-                    let completed = parseInt(completedEl.textContent);
-                    const total = parseInt(totalEl.textContent);
-
-                    completed++;
-                    completedEl.textContent = completed;
-
-                    const percent = Math.round((completed / total) * 100);
-                    progressBar.style.width = percent + "%";
-
-                    card.dataset.recorded = "1";
-
-                    // đánh dấu avatar đã ghi
-                    const avatar = card.querySelector(".avatar-circle");
-                    if (avatar) avatar.classList.add("recorded");
-                }
-
-                alert("✅ Đã lưu sức khỏe!");
-            })
-            .catch(err => {
-                console.error(err);
-                alert("❌ Lỗi lưu dữ liệu!");
-            })
-            .finally(() => {
-                btn.disabled = false;
-                btn.textContent = "Lưu";
-            });
+    if (!weight && !temp) {
+        Swal.fire("Vui lòng điền đầy đủ thông tin cân nặng và nhiệt độ");
+        weightInput.focus();
+        return;
+    }
+    if (!weight) {
+        Swal.fire("Vui lòng điền thông tin cân nặng");
+        weightInput.focus();
+        return;
+    }
+    if (!temp) {
+        Swal.fire("Vui lòng điền thông tin nhiệt độ");
+        tempInput.focus();
+        return;
     }
 
-    function updateHealthUI(card, temp) {
-        const statusEl = card.querySelector('.status-indicator');
-        const tempInput = card.querySelector('.input-temp');
-
-        if (!temp) {
-            statusEl.textContent = "-";
-            statusEl.className = "status-indicator";
-            tempInput.classList.remove("status-high-input");
-            return;
-        }
-
-        const high = parseFloat(temp) >= 37.5;
-
-        statusEl.textContent = high ? "Cao" : "Bình thường";
-        statusEl.className = `status-indicator ${high ? "status-high" : "status-normal"}`;
-        tempInput.classList.toggle("status-high-input", high);
+    // validate nhiệt độ nhẹ
+    if (temp && (temp < 30 || temp > 45)) {
+        Swal.fire("Nhiệt độ không hợp lệ!");
+        return;
     }
 
-    const searchInput = document.getElementById("search-input");
-    if (searchInput) {
-        searchInput.addEventListener("keydown", (e) => {
-            if (e.key !== "Enter") return;
+    btn.disabled = true;
+    btn.textContent = "Đang lưu...";
 
-            const keyword = searchInput.value.trim();
-            const params = new URLSearchParams(window.location.search);
+    fetch("/health-management", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ id: studentId, weight, temp, note })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data.success) throw new Error("Save failed");
 
-            // Lấy dropdown trạng thái đã cập nhật
-            const statusEl = document.getElementById("updated_status");
-            if (statusEl) {
-                const status = statusEl.value;
-                if (status) params.set("updated_status", status);
-                else params.delete("updated_status");
-            }
+        // update UI
+        updateHealthUI(card, temp);
 
-            params.set("keyword", keyword);
-            params.set("page", 1);
+        // update progress (chỉ lần đầu)
+        if (!wasRecorded) {
+            const completedEl = document.getElementById("completed-count");
+            const totalEl = document.getElementById("total-count");
+            const progressBar = document.getElementById("progress-bar");
 
-            // Lấy ngày
-            const dateEl = document.getElementById('record-date');
-            if (dateEl) {
-                const date = dateEl.value;
-                if (date) params.set("date", date);
-                else params.delete("date");
-            }
+            let completed = parseInt(completedEl.textContent);
+            const total = parseInt(totalEl.textContent);
 
-            // Chuyển hướng
-            window.location.href = `/health-management?${params.toString()}`;
+            completed++;
+            completedEl.textContent = completed;
+
+            const percent = Math.round((completed / total) * 100);
+            progressBar.style.width = percent + "%";
+
+            card.dataset.recorded = "1";
+
+            // đánh dấu avatar đã ghi
+            const avatar = card.querySelector(".avatar-circle");
+            if (avatar) avatar.classList.add("recorded");
+        }
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Đã lưu sức khỏe!',
+            showConfirmButton: false,
+            timer: 1200
         });
+    })
+    .catch(err => {
+        console.error(err);
+        Swal.fire({
+            icon: 'error',
+            title: 'Lỗi lưu dữ liệu!',
+            text: 'Vui lòng thử lại.'
+        });
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = "Lưu";
+    });
+}
+
+/**
+ * Update UI hiển thị trạng thái nhiệt độ
+ */
+function updateHealthUI(card, temp) {
+    const statusEl = card.querySelector('.status-indicator');
+    const tempInput = card.querySelector('.input-temp');
+
+    if (!temp) {
+        statusEl.textContent = "-";
+        statusEl.className = "status-indicator";
+        tempInput.classList.remove("status-high-input");
+        return;
     }
 
-    const filterStatus = document.getElementById('')
+    const high = parseFloat(temp) >= 37.5;
 
-    document.getElementById('record-date').addEventListener('change', (e) => {
-        const newDate = e.target.value;
-        console.log(`Đã chọn ngày mới: ${newDate}. Tải dữ liệu chấm công tương ứng...`);
-        const params = new URLSearchParams(window.location.search);
+    statusEl.textContent = high ? "Cao" : "Bình thường";
+    statusEl.className = `status-indicator ${high ? "status-high" : "status-normal"}`;
+    tempInput.classList.toggle("status-high-input", high);
+}
 
-        params.set("date", newDate);
-        params.set("page", 1);
-        window.location.href = `/health-management?${params.toString()}`;
+/**
+ * Search học sinh theo từ khóa
+ */
+const searchInput = document.getElementById("search-input");
+if (searchInput) {
+    searchInput.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        applyFilters();
     });
+}
+
+/**
+ * Lọc theo ngày, trạng thái, sốt
+ */
+function applyFilters() {
+    const params = new URLSearchParams(window.location.search);
+
+    const keyword = document.getElementById("search-input")?.value.trim();
+    if (keyword) params.set("keyword", keyword);
+    else params.delete("keyword");
+
+    const dateEl = document.getElementById('record-date');
+    if (dateEl?.value) params.set("date", dateEl.value);
+    else params.delete("date");
+
+    const statusEl = document.getElementById("updated_status");
+    if (statusEl?.value) params.set("updated_status", statusEl.value);
+    else params.delete("updated_status");
+
+    const feverEl = document.getElementById('filter-fever');
+    if (feverEl?.checked) params.set("fever", "1");
+    else params.delete("fever");
+
+    params.set("page", 1);
+
+    window.location.href = `/health-management?${params.toString()}`;
+}
+
+// change events
+document.getElementById('record-date')?.addEventListener('change', applyFilters);
+document.getElementById('updated_status')?.addEventListener('change', applyFilters);
+document.getElementById('filter-fever')?.addEventListener('change', applyFilters);
+
+// giữ trạng thái checkbox fever khi reload
+window.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('fever') === '1') document.getElementById('filter-fever').checked = true;
+});
 </script>
 {% endblock %}

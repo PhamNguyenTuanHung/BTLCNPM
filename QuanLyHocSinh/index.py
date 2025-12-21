@@ -1,15 +1,13 @@
 # index.py - Main Application Routes
 # File này khởi tạo Flask app và định nghĩa các route chính
-from sqlalchemy import false
 
-from QuanLyHocSinh import admin
 from flask import render_template, request, redirect, jsonify, abort
 from flask_login import login_user, logout_user, current_user, login_required
 
-from QuanLyHocSinh import app, dao, login as login_manager, db
-from QuanLyHocSinh.model import Student, HealthRecord, Invoice
-from QuanLyHocSinh.ultils import ultils
+from QuanLyHocSinh import app, login as login_manager, db
 from QuanLyHocSinh import dao
+from QuanLyHocSinh.ultils import ultils
+import admin
 
 
 # Import admin để khởi tạo Flask-Admin
@@ -171,7 +169,7 @@ def update_student():
     student_id = data.get('id')
     temp = data.get('temp')
     weight = data.get('weight')
-    result = dao.save_health_record(student_id,record_date=None, temp=temp, weight=weight,note=None)
+    result = dao.save_health_record(student_id, record_date=None, temp=temp, weight=weight, note=None)
 
     if result:
         return jsonify({"success": True, "student": result})
@@ -197,7 +195,9 @@ def health_management():
     # Lấy các filter khác
     page = request.args.get('page', 1, type=int)
     keyword = request.args.get('keyword', '')
-    updated_status = request.args.get('updated_status')  # "updated" / "not_updated" / None
+    updated_status = request.args.get('updated_status')
+    fever = request.args.get('fever')
+
 
     teacher_id = current_user.id
     teacher_class_info = dao.get_teacher_class_info(teacher_id)
@@ -208,8 +208,9 @@ def health_management():
         date_filter=selected_date,
         page=page,
         kw=keyword,
-        updated_status=updated_status,  # thêm filter
-        page_size=10
+        updated_status=updated_status,
+        page_size=10,
+        fever=fever
     )
 
     students_view = dao.build_student_view(
@@ -228,7 +229,7 @@ def health_management():
         students=students_view,
         today=today_str,
         selected_date=selected_date_str,
-        updated_status=updated_status,   # truyền vào template để đánh dấu dropdown
+        updated_status=updated_status,  # truyền vào template để đánh dấu dropdown
         keyword=keyword,
         progress_stats=progress_stats,
         pagination=result['pagination']
@@ -244,7 +245,7 @@ def update_heath():
     note = data['note']
     student_id = data['id']
     record_date = date.today()
-    record =dao.save_health_record(student_id, record_date, weight, temp, note)
+    record = dao.save_health_record(student_id, record_date, weight, temp, note)
     return jsonify({
         'success': True,
         "record": {
@@ -260,93 +261,79 @@ def update_heath():
 # ==================== MEAL MANAGEMENT ROUTES ====================
 
 @app.route('/meal-management')
+@login_required
 def meal_management():
-    """
-    Trang quản lý bữa ăn
-    """
-    # --- 1. Xử lý ngày chọn ---
     today = date.today()
     date_str = request.args.get('date')
+    kw = request.args.get('keyword', '').strip()
+
     try:
         selected_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else today
     except ValueError:
         selected_date = today
 
-    selected_date_str = selected_date.isoformat()
+    # --- Tính toán dải ngày trong tuần ---
+    start_of_week = selected_date - timedelta(days=selected_date.weekday())
+    dates_in_week = [(start_of_week + timedelta(days=i)).isoformat() for i in range(7)]
 
-    # --- 2. Lấy lớp và danh sách học sinh của giáo viên ---
-    teacher_id = current_user.id
-    teacher_class = dao.get_class_by_teacher_id(teacher_id)
+    # Tính ngày cho nút Tuần trước / Tuần sau
+    prev_week_date = (start_of_week - timedelta(days=7)).isoformat()
+    next_week_date = (start_of_week + timedelta(days=7)).isoformat()
+
+    # --- Lấy dữ liệu học sinh ---
+    teacher_class = dao.get_class_by_teacher_id(current_user.id)
     class_id = teacher_class.id if teacher_class else None
 
-    pagination = dao.load_students(
-        class_id=class_id,
-        page_size=dao.get_current_student_count(class_id)
-    )
+    # Load toàn bộ học sinh trong lớp (hoặc theo search)
+    pagination_data = dao.load_students(class_id=class_id, kw=kw, page_size=100)
+    students = pagination_data['students']
 
-    # --- 3. Lấy giá bữa ăn từ cấu hình ---
     meal_cost_per_day = dao.get_system_config('mealFee', default=50000)
 
-    # --- 4. Chuẩn hóa dữ liệu học sinh ---
     students_data = []
-
-    for s in pagination.get('students', []):
-        # Tổng số bữa ăn trong tháng
-        total_meals = dao.count_meal_days(
-            student_id=s.id,
-            month=selected_date.month,
-            year=selected_date.year
-        )
-
-        # Trạng thái hôm nay
-        ate_today = dao.is_ate_today(student_id=s.id, date=selected_date)
+    for s in students:
+        weekly_attendance = dao.get_student_attendance_for_week(s.id, dates_in_week)
+        total_meals_month = dao.count_meal_days(s.id, selected_date.month, selected_date.year)
 
         students_data.append({
             'id': s.id,
             'name': f"{s.lastName} {s.firstName}",
-            'daily_status': {selected_date_str: {'ate_today': ate_today}},
-            'total_meals_eaten': total_meals,
+            'daily_status': weekly_attendance,
+            'total_meals_eaten': total_meals_month,
             'meal_cost': meal_cost_per_day
         })
 
     return render_template(
         "meal-management.html",
         students=students_data,
-        selected_date=selected_date_str,
-        pagination=pagination,
-        today = today
+        dates_in_week=dates_in_week,
+        selected_date=selected_date.isoformat(),
+        prev_week=prev_week_date,
+        next_week=next_week_date,
+        keyword=kw
     )
-
 
 
 @app.route('/meal-attendance', methods=['POST'])
 @login_required
 def save_meal_attendance():
-    """
-    Nhận dữ liệu chấm công ăn uống từ frontend và lưu vào DB.
-    """
-    data = request.get_json()
+    # 1. Nhận data từ request
+    data = request.json
 
-    if not data:
-        return jsonify({'success': False, 'message': 'Không có dữ liệu gửi lên'}), 400
+    if not data or not isinstance(data, list):
+        return jsonify({
+            'success': False,
+            'message': 'Dữ liệu không hợp lệ hoặc trống'
+        }), 400
 
-    for record in data:
-        student_id = record.get('student_id')
-        date = record.get('date')
-        ate_today = bool(record.get('ate_today'))
+    # 2. Gọi logic xử lý từ DAO
+    success, message = dao.update_meal_attendance(data, current_user.id)
 
-        dao.update_meal_attendance(
-            student_id=student_id,
-            date=date,
-            ate_today=ate_today,
-            teacher_id=current_user.id,
-            commit=False
-        )
-    db.session.commit()
+    # 3. Trả về kết quả phù hợp cho Swal.fire nhận diện
+    if success:
+        return jsonify({'success': True, 'message': message})
 
-    return jsonify({'success': True, 'message': 'Đã lưu dữ liệu bữa ăn thành công!'})
-
-
+    return jsonify({'success': False, 'message': message}), 500
 
 
 # ==================== TUITION MANAGEMENT ROUTES ====================
@@ -360,10 +347,14 @@ def tuition():
     month = today.month
     year = today.year
 
-    status = request.args.get('status')       # "paid" / "unpaid"
-    keyword = request.args.get('keyword')     # search input
+    status = request.args.get('status')  # "paid" / "unpaid"
+    keyword = request.args.get('keyword')  # search input
 
-    invoices = dao.load_financial_records(month=month, year=year, status=status, keyword=keyword)
+    invoices = dao.load_financial_records(month=month,
+                                          year=year,
+                                          status=status,
+                                          keyword=keyword,
+                                          teacher_id=current_user.id)
 
     return render_template(
         "tuition.html",
@@ -389,7 +380,8 @@ def invoice(invoice_id):
         invoice=data['invoice']
     )
 
-from datetime import datetime, date
+
+from datetime import datetime, date, timedelta
 
 
 @app.route('/api/invoices/pay', methods=['POST'])

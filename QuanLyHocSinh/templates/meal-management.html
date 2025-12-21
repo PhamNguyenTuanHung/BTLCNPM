@@ -28,50 +28,62 @@
     <div class="content-card full-width">
         <h3>Cập nhật các học sinh ăn ngày {{selected_date}}</h3>
         <p class="table-note">Tick ✔ nếu trẻ đã ăn (áp dụng cho toàn bộ bữa ăn trong ngày).</p>
-        <div class="search-box">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                 class="icon-search">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.3-4.3"></path>
-            </svg>
-           <form method="get" class="filter-controls">
-                <input type="text" name="keyword" placeholder="Tìm kiếm theo tên trẻ"
+        <div class="search-box" style="width: 100%">
+            <!--            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"-->
+            <!--                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"-->
+            <!--                 class="icon-search">-->
+            <!--                <circle cx="11" cy="11" r="8"></circle>-->
+            <!--                <path d="m21 21-4.3-4.3"></path>-->
+            <!--            </svg>-->
+            <form method="get" class="filter-controls" style="width: 100%">
+                <input type="text" name="keyword" id="search-input" placeholder="Tìm kiếm theo tên trẻ"
                        value="{{ keyword }}" class="search-input">
 
-                <select name="status" class="filter-select" onchange="this.form.submit()">
-                    <option value="" {% if not selected_status %}selected{% endif %}>Tất cả</option>
-                    <option value="updated" {% if selected_status==
-                    'paid' %}selected{% endif %}>Đã đóng</option>
-                    <option value="unpaid" {% if selected_status==
-                    'unpaid' %}selected{% endif %}>Chưa đóng</option>
-                </select>
             </form>
         </div>
-        <div class="meal-table-wrapper">
+        <div class="week-navigation">
+            <a href="{{ url_for('meal_management', date=prev_week) }}" class="btn-week">
+                <i class="fas fa-arrow-left"></i> Tuần trước
+            </a>
 
+            <div class="week-range-text">
+                Tuần: {{ dates_in_week[0] }} - {{ dates_in_week[6] }}
+            </div>
+
+            <a href="{{ url_for('meal_management', date=next_week) }}" class="btn-week">
+                Tuần sau <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+        <div class="meal-table-wrapper">
             <table class="meal-table">
                 <thead>
                 <tr>
                     <th style="width:40px;">STT</th>
                     <th style="min-width:150px;">Tên trẻ</th>
-                    <th style="width:200px;">Có ăn</th>
+                    <th class="text-center">Thứ 2<br><small>15/12</small></th>
+                    <th class="text-center">Thứ 3<br><small>16/12</small></th>
+                    <th class="text-center">Thứ 4<br><small>17/12</small></th>
+                    <th class="text-center">Thứ 5<br><small>18/12</small></th>
+                    <th class="text-center">Thứ 6<br><small>19/12</small></th>
+                    <th class="text-center">Thứ 7<br><small>20/12</small></th>
+                    <th class="text-center">CN<br><small>21/12</small></th>
                 </tr>
                 </thead>
                 <tbody>
                 {% for student in students %}
-                {% set ate_status = student.daily_status.get(selected_date, {}).ate_today or false %}
-
                 <tr data-student-id="{{ student.id }}">
-                    <td>{{ student.id }}</td>
-                    <td>{{ student.name }}</td>
+                    <td>{{ loop.index }}</td>
+                    <td class="text-bold">{{ student.name }}</td>
 
-                    {# Checkbox duy nhất cho cả ngày (name="ate_today") #}
-                    <td class="meal-check-in text-center">
-                        <input type="checkbox" class="meal-checkbox" name="ate_today"
-                               {% if ate_status %}checked{% endif %}>
+                    {# Tạo vòng lặp cho 7 ngày (Giả sử backend gửi danh sách dates_in_week) #}
+                    {% for date_str in dates_in_week %}
+                    <td class="text-center">
+                        <input type="checkbox"
+                               class="meal-checkbox"
+                               data-date="{{ date_str }}"
+                               {% if student.daily_status.get(date_str, {}).ate_today %}checked{% endif %}>
                     </td>
-
+                    {% endfor %}
                 </tr>
                 {% endfor %}
                 </tbody>
@@ -79,8 +91,11 @@
         </div>
 
         <div class="save-button-wrapper">
-            <button id="save-meals">Lưu dữ liệu bữa ăn</button>
+            <button id="save-meals" class="btn-save-red">
+                <i class="fas fa-save"></i> Lưu điểm danh
+            </button>
         </div>
+
     </div>
     <div class="content-card full-width" style="margin-top: 1.5rem;">
         <h3>📈 Tổng Kết Số Ngày Ăn Tháng Này</h3>
@@ -150,47 +165,71 @@
         return document.getElementById('record-date').value;
     }
 
-    // Sự kiện lưu dữ liệu bữa ăn
+    // 1. Lưu trạng thái ban đầu của các checkbox
+    const initialStates = new Map();
+    document.querySelectorAll('.meal-checkbox').forEach(cb => {
+        const key = `${cb.closest('tr').dataset.studentId}-${cb.dataset.date}`;
+        initialStates.set(key, cb.checked);
+    });
+
     const saveBtn = document.getElementById('save-meals');
     saveBtn.addEventListener('click', () => {
-        const date = getSelectedDate();
-        const data = [];
+        const changedData = [];
 
+        // 2. Chỉ thu thập những ô có sự thay đổi
         document.querySelectorAll('.meal-table tbody tr').forEach(tr => {
             const studentId = tr.dataset.studentId;
+            tr.querySelectorAll('.meal-checkbox').forEach(cb => {
+                const date = cb.dataset.date;
+                const currentState = cb.checked;
+                const initialState = initialStates.get(`${studentId}-${date}`);
 
-            // Lấy trạng thái của checkbox duy nhất (name="ate_today")
-            const ateTodayCheckbox = tr.querySelector('.meal-checkbox[name="ate_today"]');
-            const ate_today = ateTodayCheckbox ? ateTodayCheckbox.checked : false;
-
-            // Dữ liệu đơn giản hóa cho backend
-            data.push({
-                student_id: studentId,
-                date: date,
-                ate_today: ate_today
+                if (currentState !== initialState) {
+                    changedData.push({
+                        student_id: studentId,
+                        date: date,
+                        ate_today: currentState
+                    });
+                }
             });
         });
 
-        console.log('Dữ liệu chấm công gửi lên server:', data);
+        if (changedData.length === 0) {
+            Swal.fire('Thông báo', 'Không có thay đổi nào cần lưu.', 'info');
+            return;
+        }
 
-        // Gửi dữ liệu lên server
-        fetch('/meal-attendance', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    alert(data.message);
-                } else {
-                    alert('Có lỗi khi lưu dữ liệu: ' + (data.message || ''));
-                }
-            })
-            .catch(err => {
-                console.error('Lỗi khi gửi dữ liệu:', err);
-                alert('Có lỗi xảy ra khi gửi dữ liệu lên server!');
-            });
+        // 3. Hiển thị xác nhận và gửi dữ liệu
+        Swal.fire({
+            title: 'Xác nhận lưu?',
+            text: `Bạn đã thay đổi ${changedData.length} mục. Cập nhật ngay?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Đồng ý',
+            cancelButtonText: 'Xem lại'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({title: 'Đang lưu...', didOpen: () => Swal.showLoading()});
+
+                fetch('/meal-attendance', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(changedData) // Chỉ gửi các mục thay đổi
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire({icon: 'success', title: 'Thành công!', timer: 1500, showConfirmButton: false});
+                            // Cập nhật lại trạng thái ban đầu để tránh gửi trùng lần sau
+                            changedData.forEach(item => {
+                                initialStates.set(`${item.student_id}-${item.date}`, item.ate_today);
+                            });
+                        } else {
+                            Swal.fire('Lỗi', data.message, 'error');
+                        }
+                    });
+            }
+        });
     });
 
     // Tải dữ liệu bữa ăn khi ngày thay đổi (Logic phía Frontend)

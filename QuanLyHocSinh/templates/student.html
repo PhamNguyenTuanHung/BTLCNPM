@@ -39,13 +39,14 @@
                    value="{{ request.args.get('keyword', '') }}"
                    onkeydown="if(event.keyCode === 13) searchStudents()">
         </div>
+
     </div>
 
     <div id="student-list" class="student-cards-grid">
         {% for student in students %}
         {% set record = student.current_record or {} %}
         <div class="student-card {% if record.temp and record.temp|float >= 37.5 %}fever{% endif %}"
-            data-id="{{ student.id }}">
+             data-id="{{ student.id }}">
             <div class="card-header">
                 <div class="info-group">
                     <div class="avatar-wrapper {{ 'male' if student.gender == 'Nam' else 'female' }}">
@@ -83,7 +84,7 @@
                         </path>
                         <path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"></path>
                     </svg>
-                    <span>Sức khỏe gần nhất</span>
+                    <span>Sức khỏe hôm nay</span>
                 </div>
 
                 <div class="health-details">
@@ -275,7 +276,5 @@
             </form>
         </div>
     </div>
-
-
 </div>
 {% endblock %}

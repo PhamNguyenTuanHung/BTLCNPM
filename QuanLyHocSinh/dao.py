@@ -267,28 +267,26 @@ from sqlalchemy import or_
 
 
 def load_students_with_health(
-        teacher_id,
-        date_filter=None,
-        kw=None,
-        updated_status=None,  # new: "updated" / "not_updated"
-        page=1,
-        page_size=10
+    teacher_id,
+    date_filter=None,
+    kw=None,
+    updated_status=None,  # "updated" / "not_updated"
+    page=1,
+    page_size=10,
+    fever=0
 ):
     """
     Lấy danh sách học sinh theo lớp giáo viên
-    + hồ sơ sức khỏe theo ngày (date_filter)
-    + tìm kiếm (kw)
-    + filter theo trạng thái đã cập nhật/not cập nhật
-    + phân trang
+    + Hồ sơ sức khỏe theo ngày (date_filter)
+    + Tìm kiếm theo keyword (kw)
+    + Filter theo trạng thái đã cập nhật/not cập nhật
+    + Filter sốt: fever=1 => sốt, fever=0 => tất cả
+    + Phân trang
     """
-
     query = (
         db.session.query(Student)
         .join(Class, Student.class_id == Class.id)
-        .filter(
-            Class.teacher_id == teacher_id,
-            Student.active == True
-        )
+        .filter(Class.teacher_id == teacher_id, Student.active == True)
     )
 
     # 🔍 Search keyword
@@ -303,16 +301,9 @@ def load_students_with_health(
         )
 
     query = query.order_by(Student.id.asc())
-
-    pagination = query.paginate(
-        page=page,
-        per_page=page_size,
-        error_out=False
-    )
-
+    pagination = query.paginate(page=page, per_page=page_size, error_out=False)
     students = pagination.items
 
-    # 🩺 Lấy health record theo ngày
     records_by_student = {}
     updated_on_day = set()
 
@@ -338,13 +329,21 @@ def load_students_with_health(
         elif updated_status == "not_updated":
             students = [s for s in students if s.id not in updated_on_day]
 
+        # 🔹 Filter fever
+        if fever == '1':
+            students = [
+                s for s in students
+                if s.id in records_by_student
+                and records_by_student[s.id].bodyTemperature is not None
+                and records_by_student[s.id].bodyTemperature >= 37.5
+            ]
+
     return {
         'students': students,
         'records_by_student': records_by_student,
         'updated_on_day': updated_on_day,
         'pagination': pagination
     }
-
 
 
 def get_today_health_records():
@@ -450,34 +449,44 @@ def save_health_record(student_id, record_date, weight, temp, note):
 
 # ==================== MEAL ATTENDANCE FUNCTIONS ====================
 
-def update_meal_attendance(student_id, date, ate_today, teacher_id, commit=True):
-    # Chuẩn hoá date
-    if isinstance(date, str):
-        date = datetime.strptime(date, '%Y-%m-%d').date()
+def update_meal_attendance(data_list, user_id):
+    """
+    Xử lý lưu hàng loạt các thay đổi chấm công.
+    data_list: [{'student_id': 1, 'date': '2025-12-15', 'ate_today': True}, ...]
+    """
+    try:
+        for item in data_list:
+            s_id = item.get('student_id')
+            date_str = item.get('date')
+            ate_today = item.get('ate_today')
 
-    # Tìm bản ghi theo NGÀY (bỏ giờ)
-    record = MealAttendance.query.filter(
-        MealAttendance.student_id == student_id,
-        func.date(MealAttendance.attendance_date) == date
-    ).first()
+            # Chuyển đổi date
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
 
-    if ate_today:
-        # ✅ CÓ ĂN → đảm bảo có record
-        if not record:
-            record = MealAttendance(
-                student_id=student_id,
-                attendance_date=datetime.combine(date, datetime.min.time()),
-                created_by=teacher_id,
-                note=None
-            )
-            db.session.add(record)
-    else:
-        # ❌ KHÔNG ĂN → xoá record nếu tồn tại
-        if record:
-            db.session.delete(record)
+            # Tìm record hiện tại theo ngày
+            record = MealAttendance.query.filter(
+                MealAttendance.student_id == s_id,
+                func.date(MealAttendance.attendance_date) == date_obj
+            ).first()
 
-    if commit:
+            if ate_today and not record:
+                # TRƯỜNG HỢP: Tích chọn + Chưa có bản ghi -> Thêm mới
+                new_rec = MealAttendance(
+                    student_id=s_id,
+                    attendance_date=datetime.combine(date_obj, datetime.min.time()),
+                    created_by=user_id
+                )
+                db.session.add(new_rec)
+
+            elif not ate_today and record:
+                # TRƯỜNG HỢP: Bỏ chọn + Đang có bản ghi -> Xóa (Học sinh nghỉ ăn)
+                db.session.delete(record)
+
         db.session.commit()
+        return True, "Cập nhật dữ liệu thành công"
+    except Exception as e:
+        db.session.rollback()
+        return False, str(e)
 
 
 from sqlalchemy import extract, func
@@ -498,48 +507,80 @@ def is_ate_today(student_id, date):
     ).first() is not None
 
 
+def get_student_attendance_for_week(student_id, dates_in_week):
+    """
+    Trả về dict trạng thái ăn uống của 1 học sinh trong 7 ngày
+    Kết quả: {'2025-12-15': {'ate_today': True}, '2025-12-16': {'ate_today': False}, ...}
+    """
+    # Lấy các bản ghi có trong dải ngày
+    records = MealAttendance.query.filter(
+        MealAttendance.student_id == student_id,
+        func.date(MealAttendance.attendance_date).in_(dates_in_week)
+    ).all()
+
+    # Tạo tập hợp các ngày đã có bản ghi (có bản ghi = có đi ăn)
+    attended_dates = {r.attendance_date.date().isoformat() for r in records}
+
+    # Xây dựng kết quả đủ 7 ngày cho Frontend
+    result = {}
+    for d_str in dates_in_week:
+        result[d_str] = {'ate_today': d_str in attended_dates}
+
+    return result
+
+
 # ==================== FINANCIAL FUNCTIONS ====================
-def load_financial_records(month=None, year=None, status=None, keyword=None):
-    """
-    Tải danh sách hồ sơ tài chính (hóa đơn học phí)
-    status: None / "paid" / "unpaid"
-    keyword: tìm kiếm theo tên học sinh hoặc phụ huynh
-    """
-    base_tuition = get_system_config('tuition', default=500000)
+def load_financial_records(month=None, year=None, status=None, keyword=None, teacher_id=None):
+    # Lấy giá trị cấu hình mặc định 1 lần duy nhất ngoài vòng lặp
+    base_tuition = get_system_config('tuition', default=3000000)
     meal_cost_per_day = get_system_config('mealFee', default=50000)
 
-    query = db.session.query(Invoice, Student).join(Student, Student.id == Invoice.student_id).filter(Invoice.active == True)
+    # Khởi tạo query cơ bản
+    query = db.session.query(Invoice, Student).join(
+        Student, Student.id == Invoice.student_id
+    ).join(
+        Class, Class.id == Student.class_id
+    )
 
+    # Bộ lọc cơ bản
+    if teacher_id:
+        query = query.filter(Class.teacher_id == teacher_id)
     if month:
-        query = query.filter(Invoice.month == month)
+        query = query.filter(Invoice.month == int(month))
     if year:
-        query = query.filter(Invoice.year == year)
+        query = query.filter(Invoice.year == int(year))
 
-    # Lấy tất cả trước, sau đó filter keyword và status
+    # Lọc theo trạng thái thanh toán (Thanh toán dựa trên paymentDate)
+    if status == "paid":
+        query = query.filter(Invoice.paymentDate.isnot(None))
+    elif status == "unpaid":
+        query = query.filter(Invoice.paymentDate.is_(None))
+
+    # Lọc theo từ khóa (Tìm kiếm ngay trong SQL để tối ưu)
+    if keyword:
+        kw = f"%{keyword.strip()}%"
+        query = query.filter(
+            (Student.firstName.ilike(kw)) |
+            (Student.lastName.ilike(kw)) |
+            (Student.parentName.ilike(kw))
+        )
+
     invoices = query.all()
     financial_records = []
 
     for inv, student in invoices:
-        meal_days = count_meal_days(student.id, month, year)
-        tuition_fee = inv.tuition or base_tuition
-        meal_fee = inv.mealFee or meal_cost_per_day
-        total_meal_cost = meal_days * meal_fee
-        total_amount = inv.total or (tuition_fee + total_meal_cost)
-        is_paid = inv.paymentDate is not None
+        # Nếu hóa đơn chưa chốt (mealDays = 0), ta lấy số ngày ăn thực tế hiện tại
+        # Nếu đã chốt hoặc đã đóng tiền, ta lấy số ngày đã lưu trong hóa đơn
+        if inv.paymentDate is None:
+            actual_meal_days = count_meal_days(student.id, inv.month, inv.year)
+        else:
+            actual_meal_days = inv.mealDays or 0
 
-        # Filter trạng thái
-        if status == "paid" and not is_paid:
-            continue
-        if status == "unpaid" and is_paid:
-            continue
+        tuition_fee = inv.tuition if inv.tuition else base_tuition
+        meal_fee = inv.mealFee if inv.mealFee else meal_cost_per_day
 
-        # Filter keyword (tên học sinh hoặc phụ huynh)
-        if keyword:
-            kw = keyword.lower()
-            student_name = f"{student.lastName} {student.firstName}".lower()
-            parent_name = (student.parentName or "").lower()
-            if kw not in student_name and kw not in parent_name:
-                continue
+        total_meal_cost = actual_meal_days * meal_fee
+        total_amount = tuition_fee + total_meal_cost
 
         financial_records.append({
             'invoice_id': inv.id,
@@ -549,16 +590,15 @@ def load_financial_records(month=None, year=None, status=None, keyword=None):
             'month': inv.month,
             'year': inv.year,
             'tuition_fee': tuition_fee,
-            'meal_days': meal_days,
+            'meal_days': actual_meal_days,
             'meal_fee_per_day': meal_fee,
             'total_meal_cost': total_meal_cost,
             'total_amount': total_amount,
-            'is_paid': is_paid,
+            'is_paid': inv.paymentDate is not None,
             'payment_date': inv.paymentDate
         })
 
     return financial_records
-
 
 
 def is_invoice_paid(student_id, month, year):
