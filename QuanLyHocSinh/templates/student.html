@@ -82,8 +82,9 @@
                         </path>
                         <path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"></path>
                     </svg>
-                    <span>Sức khỏe gần nhất{% if record.date %} ({{ record.date.strftime('%d/%m/%Y') }}){% endif
-                        %}</span>
+                    <span class="latest-health-title">
+    Sức khỏe gần nhất{% if record.date %} ({{ record.date.strftime('%d/%m/%Y') }}){% endif %}
+</span>
                 </div>
 
                 <div class="health-details">

@@ -15,7 +15,6 @@ from QuanLyHocSinh.model import Student
 from QuanLyHocSinh.model import User, Class, HealthRecord, Invoice, SystemConfig, UserRole, MealAttendance
 
 
-
 # ==================== BASE ADMIN VIEW ====================
 class AuthenticatedModelView(ModelView):
     """
@@ -452,9 +451,9 @@ class InvoiceView(AuthenticatedModelView):
     """
     Quản lý hóa đơn học phí
     """
-    column_list = ['id', 'student', 'mealDays', 'mealFee', 'tuition', 'total', 'paymentDate', 'teacher']
+    column_list = ['id', 'student','student_id', 'mealDays', 'mealFee', 'tuition', 'total', 'paymentDate', 'teacher']
     column_searchable_list = []
-    column_filters = ['paymentDate', 'createdAt', 'student_id', 'teacher_id']
+    column_filters = ['paymentDate', 'createdAt', 'student_id', 'teacher_id','student.firstName']
     column_labels = {
         'id': 'ID',
         'student': 'Học sinh',
@@ -466,7 +465,8 @@ class InvoiceView(AuthenticatedModelView):
         'createdAt': 'Ngày tạo',
         'teacher': 'Giáo viên tạo',
         'student_id': 'ID Học sinh',
-        'teacher_id': 'ID Giáo viên'
+        'teacher_id': 'ID Giáo viên',
+        'student_name': 'Tên học sinh',
     }
     can_export = True
     page_size = 30

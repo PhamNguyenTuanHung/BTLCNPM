@@ -67,7 +67,6 @@
                     {% for record in invoices %}
                     {% set meal_days = record.meal_days | default(0) %}
                     {% set total_fee = record.total_amount | default(0) %}
-                    {% set is_paid = record.is_paid | default(false) %}
                     {% set invoice_id = record.invoice_id %}
 
                     <tr class="student-tuition-card" data-invoice-id="{{ invoice_id if invoice_id else 'null' }}"

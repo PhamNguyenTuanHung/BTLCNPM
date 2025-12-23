@@ -718,42 +718,47 @@ def get_week_dates(week_offset=0):
 
 def get_weekly_meal_attendance(student_ids, week_dates):
     """
-    Lấy dữ liệu điểm danh bữa ăn cho nhiều học sinh trong cả tuần
-    
-    Args:
-        student_ids: List of student IDs
-        week_dates: List of 7 date objects
-        
-    Returns:
-        Dict {student_id: {date_str: True/False}}
+    Trả về:
+    {
+        student_id: {
+            'YYYY-MM-DD': {
+                'attended': bool,
+                'note': str
+            }
+        }
+    }
     """
     if not student_ids or not week_dates:
         return {}
-    
+
     start_date = week_dates[0]
     end_date = week_dates[-1]
-    
-    # Query all meal attendance records for this week
+
     records = db.session.query(MealAttendance).filter(
         MealAttendance.student_id.in_(student_ids),
         func.date(MealAttendance.attendance_date) >= start_date,
         func.date(MealAttendance.attendance_date) <= end_date
     ).all()
-    
-    # Build result dict
+
+    # Init mặc định
     result = {}
     for student_id in student_ids:
         result[student_id] = {}
         for day in week_dates:
-            result[student_id][day.isoformat()] = False
-    
-    # Mark days with attendance
+            result[student_id][day.isoformat()] = {
+                'attended': False,
+                'note': ''   # 👈 NULL → rỗng
+            }
+
+    # Ghi đè từ DB
     for record in records:
         student_id = record.student_id
-        attendance_date = record.attendance_date.date().isoformat()
-        if student_id in result and attendance_date in result[student_id]:
-            result[student_id][attendance_date] = True
-    
+        date_str = record.attendance_date.date().isoformat()
+
+        if student_id in result and date_str in result[student_id]:
+            result[student_id][date_str]['attended'] = True
+            result[student_id][date_str]['note'] = record.note or ''
+
     return result
 
 
@@ -769,7 +774,7 @@ def save_weekly_meal_attendance(attendance_data, teacher_id):
         student_id = item['student_id']
         date_str = item['date']
         ate = item['ate']
-        note = item.get('note', '')  # Get note if provided
+        note = item.get('note', '')
         
         update_meal_attendance(
             student_id=student_id,
@@ -1170,70 +1175,56 @@ def export_tuition_report_excel(financial_records, month, year, class_name=""):
 
 
 # ==================== FINANCIAL FUNCTIONS ====================
-def load_financial_records(month=None, year=None, status=None, keyword=None, class_id=None):
+def load_financial_records(month=None, year=None, keyword=None, class_id=None):
     """
-    Tải danh sách học sinh trong lớp và tính toán học phí
-    - Hiển thị TẤT CẢ học sinh trong lớp (không cần có invoice sẵn)
-    - Số bữa ăn lấy từ meal_attendance
-    - Invoice chỉ được tạo khi thanh toán
+    Tải danh sách học sinh và học phí
+    - Hiển thị TẤT CẢ học sinh
+    - Meal days lấy từ meal_attendance
+    - Invoice chỉ tồn tại khi đã thu tiền
     """
     from datetime import date as datetime_date
-    
-    base_tuition = get_system_config('HOC_PHI_CO_BAN', default=1500000)
-    meal_cost_per_day = get_system_config('TIEN_AN_MOT_NGAY', default=30000)
-    
-    # Nếu không truyền month/year, dùng tháng hiện tại
-    if not month or not year:
-        today = datetime_date.today()
-        month = month or today.month
-        year = year or today.year
-    
-    # Lấy TẤT CẢ học sinh trong lớp
-    query = db.session.query(Student).filter(Student.active == True)
-    
+
+    base_tuition = get_system_config('tuition', default=1500000)
+    meal_cost_per_day = get_system_config('mealFee', default=30000)
+
+    today = datetime_date.today()
+    month = month or today.month
+    year = year or today.year
+
+    query = Student.query.filter(Student.active.is_(True))
+
     if class_id:
         query = query.filter(Student.class_id == class_id)
-    
+
     students = query.all()
     financial_records = []
-    
+
     for student in students:
-        # Filter keyword (chỉ tìm kiếm theo tên học sinh)
+        # Filter theo tên
         if keyword:
             kw = keyword.lower()
-            student_name = f"{student.lastName} {student.firstName}".lower()
-            if kw not in student_name:
+            full_name = f"{student.lastName} {student.firstName}".lower()
+            if kw not in full_name:
                 continue
-        
-        # Tính số bữa ăn từ meal_attendance
+
+        # Số bữa ăn
         meal_days = count_meal_days(student.id, month, year)
-        
-        # Tính toán học phí
+
+        # Tính tiền
         tuition_fee = base_tuition
-        meal_fee = meal_cost_per_day
-        total_meal_cost = meal_days * meal_fee
+        total_meal_cost = meal_days * meal_cost_per_day
         total_amount = tuition_fee + total_meal_cost
-        
-        # Kiểm tra xem có invoice cho tháng này chưa
+
+        # Invoice = đã thu tiền
         invoice = Invoice.query.filter_by(
             student_id=student.id,
             month=month,
             year=year,
             active=True
         ).first()
-        
-        # Xác định trạng thái thanh toán
-        is_paid = invoice.paymentDate is not None if invoice else False
-        invoice_id = invoice.id if invoice else None
-        
-        # Filter theo status nếu có
-        if status == "paid" and not is_paid:
-            continue
-        if status == "unpaid" and is_paid:
-            continue
-        
+
         financial_records.append({
-            'invoice_id': invoice_id,
+            'invoice_id': invoice.id if invoice else None,
             'student_id': student.id,
             'student_name': f"{student.lastName} {student.firstName}",
             'parent_name': student.parentName,
@@ -1241,15 +1232,13 @@ def load_financial_records(month=None, year=None, status=None, keyword=None, cla
             'year': year,
             'tuition_fee': tuition_fee,
             'meal_days': meal_days,
-            'meal_fee_per_day': meal_fee,
+            'meal_fee_per_day': meal_cost_per_day,
             'total_meal_cost': total_meal_cost,
             'total_amount': total_amount,
-            'is_paid': is_paid,
             'payment_date': invoice.paymentDate if invoice else None
         })
-    
-    return financial_records
 
+    return financial_records
 
 
 def is_invoice_paid(student_id, month, year):

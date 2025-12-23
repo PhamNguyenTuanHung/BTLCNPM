@@ -15,7 +15,7 @@ from flask_login import login_user, logout_user, current_user, login_required
 
 # Application
 from QuanLyHocSinh import app, dao, login as login_manager, db, admin
-from QuanLyHocSinh.model import Student, HealthRecord, Invoice
+from QuanLyHocSinh.model import Student, HealthRecord, Invoice, MealAttendance
 
 # PDF support (optional)
 try:
@@ -177,7 +177,7 @@ def students():
     )
 
     max_capacity = int(
-        dao.get_system_config('SI_SO', default=len(students_view))
+        dao.get_system_config('maxNumber', default=len(students_view))
     )
 
     return render_template(
@@ -345,16 +345,16 @@ def meal_management():
             month=today.month,
             year=today.year
         )
-        
+
         students_data.append({
             'id': s.id,
             'name': f"{s.lastName} {s.firstName}",
-            'weekly_attendance': meal_data.get(s.id, {}),  # {date: True/False}
+            'weekly_meals': meal_data.get(s.id, {}),
             'total_meals_month': total_meals_month,
-            'meal_dates': meal_dates,  # List of date objects
+            'meal_dates': meal_dates,
             'meal_cost': meal_cost_per_day
         })
-    
+
     return render_template(
         "meal-management.html",
         students=students_data,
@@ -388,6 +388,37 @@ def save_meal_attendance():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/meal-attendance/update-note', methods=['POST'])
+def update_note():
+    data = request.json
+    student_id = data['student_id']
+    date = data['date']
+    note = data.get('note')
+
+    meal_note = MealAttendance.query.filter_by(
+        student_id=student_id,
+        attendance_date=date
+    ).first()
+    print(meal_note)
+    print(note)
+
+    if note:
+        if meal_note:
+            meal_note.note = note
+        else:
+            meal_note = MealAttendance(
+                student_id=student_id,
+                attendance_date=date,
+                note=note
+            )
+            db.session.add(meal_note)
+    else:
+        if meal_note:
+            db.session.delete(meal_note)
+
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 @app.route('/api/meal-attendance/export-excel')
@@ -449,8 +480,8 @@ def tuition():
     """
     teacher_id = current_user.id
     today_str = date.today().isoformat()
-    base_tuition = dao.get_system_config('HOC_PHI_CO_BAN', default=3000000)
-    meal_cost_per_day = dao.get_system_config('TIEN_AN_MOT_NGAY', default=50000)
+    base_tuition = dao.get_system_config('tuition', default=3000000)
+    meal_cost_per_day = dao.get_system_config('mealFee', default=50000)
 
     today = date.today()
     month = today.month
@@ -478,7 +509,6 @@ def tuition():
     invoices = dao.load_financial_records(
         month=month, 
         year=year, 
-        status=status, 
         keyword=keyword,
         class_id=class_id  # Thêm filter theo class
     )
@@ -593,8 +623,8 @@ def pay_tuition_fee():
         year = today.year
         
         # Lấy config
-        base_tuition = dao.get_system_config('HOC_PHI_CO_BAN', default=1500000)
-        meal_cost_per_day = dao.get_system_config('TIEN_AN_MOT_NGAY', default=30000)
+        base_tuition = dao.get_system_config('tuition', default=1500000)
+        meal_cost_per_day = dao.get_system_config('mealFee', default=30000)
         
         # Tính số bữa ăn
         meal_days = dao.count_meal_days(student_id, month, year)
@@ -711,10 +741,12 @@ def export_invoice_pdf(invoice_id):
     # XÓA meal_attendance của tháng này sau khi xuất PDF
     # (số ngày ăn đã được lưu trong invoice.mealDays)
     try:
+        month = invoice.month
+        year = invoice.year
         MealAttendance.query.filter(
             MealAttendance.student_id == student.id,
-            db.func.extract('month', MealAttendance.date) == month,
-            db.func.extract('year', MealAttendance.date) == year
+            db.func.extract('month', MealAttendance.attendance_date) == month,
+            db.func.extract('year', MealAttendance.attendance_date) == year
         ).delete(synchronize_session=False)
         db.session.commit()
     except Exception as e:

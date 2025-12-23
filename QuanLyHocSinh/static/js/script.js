@@ -6,6 +6,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const modal = $("#student-modal");
     const form = $("#student-form");
 
+    const todayStr = () => {
+    const d = new Date();
+    return d.toISOString().split('T')[0];
+};
+
+
     const fields = {
         id: $("#student-id"),
         name: $("#student-name"),
@@ -149,7 +155,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!res.success) throw "Cập nhật thất bại";
                 updateHealthCard(payload);
                 closeModal();
-                alert("✅ Cập nhật thành công");
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Thành công',
+                    text: 'Cập nhật thành công',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+
             })
             .catch(err => alert(err));
     });
@@ -157,6 +170,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const updateHealthCard = ({id, weight, temp}) => {
         const card = $(`.student-card[data-id="${id}"]`);
         if (!card) return;
+
+        const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+
+    const title = card.querySelector('.latest-health-title');
+    if (title) {
+        title.textContent = `Sức khỏe gần nhất (${day}/${month}/${year})`;
+    }
 
         $(".health-details div:nth-child(1) p:nth-child(2)", card).textContent =
             weight ? `${weight} kg` : "-- kg";
