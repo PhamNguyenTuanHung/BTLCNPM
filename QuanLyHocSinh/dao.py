@@ -13,48 +13,10 @@ from sqlalchemy import or_, extract, func
 
 
 # ==================== HELPER FUNCTIONS ====================
-def safe_int(value, default=0):
-    """Safely convert to int with default value"""
-    try:
-        return int(value) if value is not None else default
-    except (ValueError, TypeError):
-        return default
-
-
-def safe_float(value, default=0.0):
-    """Safely convert to float with default value"""
-    try:
-        return float(value) if value is not None else default
-    except (ValueError, TypeError):
-        return default
-
-
-def format_datetime(dt, format='%d/%m/%Y'):
-    """Format datetime safely"""
-    if not dt:
-        return ''
-    try:
-        return dt.strftime(format)
-    except:
-        return ''
-
-
-def format_currency(amount):
-    """Format amount as Vietnamese currency"""
-    if amount is None:
-        return "0 đ"
-    try:
-        return f"{int(amount):,} đ".replace(',', '.')
-    except:
-        return "0 đ"
-
 
 def paginate(query, page=1, page_size=10):
     """
     Generic pagination helper
-    
-    Returns:
-        Dict with items, total, page, page_size, total_pages
     """
     page = max(1, page)
     page_size = max(1, page_size)
@@ -69,72 +31,6 @@ def paginate(query, page=1, page_size=10):
         'page_size': page_size,
         'total_pages': (total + page_size - 1) // page_size if total > 0 else 1
     }
-
-
-def teacher_required(f):
-    """Decorator combining login_required + teacher validation"""
-    from flask_login import login_required
-    
-    @wraps(f)
-    @login_required
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            return redirect('/login')
-        
-        class_id, _ = get_teacher_class_info(current_user.id)
-        if not class_id:
-            abort(403, "Giáo viên chưa được phân công lớp học")
-        
-        return f(*args, **kwargs)
-    
-    return decorated_function
-
-
-def get_date_range(year, month):
-    """Get first and last day of a month"""
-    import calendar
-    
-    first_day = date(year, month, 1)
-    last_day_num = calendar.monthrange(year, month)[1]
-    last_day = date(year, month, last_day_num)
-    
-    return first_day, last_day
-
-
-def build_search_filter(model, search_term, *fields):
-    """Build OR filter for searching across multiple fields"""
-    if not search_term or not fields:
-        return None
-    
-    filters = []
-    for field_name in fields:
-        field = getattr(model, field_name, None)
-        if field is not None:
-            filters.append(field.contains(search_term))
-    
-    return or_(*filters) if filters else None
-
-
-# ==================== BASE QUERY BUILDERS ====================
-def _base_student_query(class_id=None, active_only=True):
-    """
-    Base query for students with common filters
-    
-    Args:
-        class_id: Filter by class ID
-        active_only: Only return active students
-        
-    Returns:
-        SQLAlchemy query
-    """
-    query = Student.query
-    if active_only:
-        query = query.filter_by(active=True)
-    if class_id:
-        query = query.filter_by(class_id=class_id)
-    return query
-
-
 
 # ==================== USER FUNCTIONS ====================
 def auth_user(username, password):
@@ -239,17 +135,6 @@ def load_students(class_id=None, kw=None, page=1, page_size=10):
         "has_next": pagination.has_next,
         "has_prev": pagination.has_prev
     }
-
-
-def count_students(class_id=None):
-    """
-    Đếm số lượng học sinh
-    
-    OPTIMIZED: Use direct query instead of loading all students
-    """
-    query = _base_student_query(class_id=class_id, active_only=True)
-    return query.count()
-
 
 def add_student(student_data):
     """
@@ -417,7 +302,7 @@ def load_students_with_health(
         )
     )
 
-    # 🔍 Search keyword
+    # Search keyword
     if kw:
         keyword = f"%{kw.strip()}%"
         query = query.filter(
@@ -438,7 +323,7 @@ def load_students_with_health(
 
     students = pagination.items
 
-    # 🩺 Lấy health record theo ngày
+    # Lấy health record theo ngày
     records_by_student = {}
     updated_on_day = set()
 
@@ -458,7 +343,7 @@ def load_students_with_health(
         records_by_student = {r.student_id: r for r in records}
         updated_on_day = {r.student_id for r in records}
 
-        # 🔹 Filter theo updated_status
+        # Filter theo updated_status
         if updated_status == "updated":
             students = [s for s in students if s.id in updated_on_day]
         elif updated_status == "not_updated":
@@ -516,14 +401,6 @@ def get_latest_health_records(student_ids=None):
     return {r.student_id: r for r in records}
 
 
-# Giữ lại hàm cũ để tương thích ngược (nếu có code khác gọi)
-def get_today_health_records():
-    """
-    DEPRECATED: Sử dụng get_latest_health_records() thay thế
-    """
-    return get_latest_health_records()
-
-
 def count_students_with_health_record(teacher_id, date):
     return (
         db.session.query(HealthRecord.student_id)
@@ -554,30 +431,6 @@ def build_health_progress_stats(teacher_id, date, total_students):
         'percentage': (recorded_count / total_students * 100)
         if total_students else 0
     }
-
-
-def build_health_student_view(students, records_by_student):
-    result = []
-
-    for s in students:
-        health_record = records_by_student.get(s.id)
-
-        current_record = {}
-        if health_record:
-            current_record = {
-                'weight': health_record.weight,
-                'temp': health_record.bodyTemperature,
-                'note': health_record.note or '',
-                'date': health_record.recordingDate  # Add date field
-            }
-
-        result.append({
-            'id': s.id,
-            'name': f"{s.lastName} {s.firstName}",
-            'current_record': current_record
-        })
-
-    return result
 
 
 def save_health_record(student_id, record_date, weight, temp, note):
@@ -631,7 +484,7 @@ def update_meal_attendance(student_id, date, ate_today, teacher_id, note=None, c
     ).first()
 
     if ate_today:
-        # ✅ CÓ ĂN → đảm bảo có record
+        # CÓ ĂN → đảm bảo có record
         if not record:
             record = MealAttendance(
                 student_id=student_id,
@@ -644,7 +497,7 @@ def update_meal_attendance(student_id, date, ate_today, teacher_id, note=None, c
             # Cập nhật note nếu record đã tồn tại
             record.note = note
     else:
-        # ❌ KHÔNG ĂN → xoá record nếu tồn tại
+        # KHÔNG ĂN → xoá record nếu tồn tại
         if record:
             db.session.delete(record)
 
@@ -661,13 +514,6 @@ def count_meal_days(student_id, month, year):
         extract('month', MealAttendance.attendance_date) == month,
         extract('year', MealAttendance.attendance_date) == year
     ).scalar() or 0
-
-
-def is_ate_today(student_id, date):
-    return db.session.query(MealAttendance.id).filter(
-        MealAttendance.student_id == student_id,
-        func.date(MealAttendance.attendance_date) == date
-    ).first() is not None
 
 
 def get_meal_dates(student_id, month, year):
@@ -747,7 +593,7 @@ def get_weekly_meal_attendance(student_ids, week_dates):
         for day in week_dates:
             result[student_id][day.isoformat()] = {
                 'attended': False,
-                'note': ''   # 👈 NULL → rỗng
+                'note': ''
             }
 
     # Ghi đè từ DB
@@ -1240,40 +1086,6 @@ def load_financial_records(month=None, year=None, keyword=None, class_id=None):
 
     return financial_records
 
-
-def is_invoice_paid(student_id, month, year):
-    invoice = Invoice.query.filter_by(
-        student_id=student_id,
-        month=month,
-        year=year,
-        active=True
-    ).first()
-
-    if not invoice:
-        return False
-
-    return invoice.paymentDate is not None
-
-
-def update_invoice_payment(student_id, month, year):
-    invoice = Invoice.query.filter_by(
-        student_id=student_id,
-        month=month,
-        year=year,
-        active=True
-    ).first()
-
-    if not invoice:
-        return False
-
-    if invoice.paymentDate:
-        return "Đã đóng rồi"
-
-    invoice.paymentDate = datetime.utcnow()
-    db.session.commit()
-    return True
-
-
 def pay_invoice(invoice_id):
     """
     Thanh toán hóa đơn theo invoice_id.
@@ -1304,40 +1116,6 @@ def pay_invoice(invoice_id):
     }, 200
 
 
-def generate_monthly_invoices(tuition, meal_fee):
-    now = datetime.now()
-    month = now.month
-    year = now.year
-
-    students = Student.query.filter_by(active=True).all()
-
-    for s in students:
-        exists = Invoice.query.filter_by(
-            student_id=s.id,
-            month=month,
-            year=year
-        ).first()
-
-        if exists:
-            continue  # đã có rồi thì bỏ qua
-
-        invoice = Invoice(
-            student_id=s.id,
-            teacher_id=s.class_.teacher_id if s.class_ else None,
-            month=month,
-            year=year,
-            tuition=tuition,
-            mealDays=0,
-            mealFee=meal_fee,
-            total=tuition,
-            paymentDate=None
-        )
-
-        db.session.add(invoice)
-
-    db.session.commit()
-
-
 def get_invoice_data(invoice_id):
     invoice = Invoice.query.get(invoice_id)
 
@@ -1361,12 +1139,6 @@ def get_invoice_data(invoice_id):
 
 
 # ==================== CLASS FUNCTIONS ====================
-def load_classes():
-    """
-    Tải danh sách các lớp
-    """
-    # Có thể lấy từ database hoặc JSON tùy theo thiết kế
-    return Class.query.filter(Class.active == True).all()
 
 
 def get_teacher_class_info(teacher_id):
@@ -1384,14 +1156,6 @@ def get_class_by_teacher_id(teacher_id):
     Lấy thông tin lớp theo id giáo viên
     """
     return Class.query.filter(Class.teacher_id == teacher_id).first()
-
-
-def get_class_by_id(class_id):
-    """
-    Lấy thông tin lớp theo ID
-    """
-    return Class.query.get(class_id)
-
 
 def get_current_student_count(class_id):
     return Student.query.filter(
@@ -1440,47 +1204,6 @@ def get_dashboard_stats(today_str):
         financial_records,
         today_str
     )
-
-
-def get_chart_data():
-    """
-    Lấy dữ liệu cho các biểu đồ
-    """
-    # Lấy dữ liệu từ database rồi chuyển sang dạng list dict
-    students_db = Student.query.filter(Student.active == True).all()
-    invoices_db = Invoice.query.filter(Invoice.active == True).all()
-    health_db = HealthRecord.query.filter(HealthRecord.active == True).all()
-
-    students = []
-    for s in students_db:
-        students.append({
-            'id': s.id,
-            'name': f"{s.lastName} {s.firstName}",
-            'gender': 'Nam' if s.gender else 'Nữ'
-        })
-
-    financial_records = []
-    for inv in invoices_db:
-        financial_records.append({
-            'student_id': inv.student_id,
-            'paid_status': inv.paymentDate is not None
-        })
-
-    health_records = []
-    for r in health_db:
-        health_records.append({
-            'student_id': r.student_id,
-            'date': r.recordingDate.date().isoformat(),
-            'weight': r.weight,
-            'temp': r.bodyTemperature
-        })
-
-    return {
-        'gender_chart': get_gender_chart_data(students),
-        'revenue_chart': get_revenue_chart_data(financial_records),
-        'weight_chart': get_average_weight_chart_data(health_records)
-    }
-
 
 # ==================== STATISTICS HELPER FUNCTIONS (moved from ultils) ====================
 
@@ -1545,72 +1268,6 @@ def get_dashboard_stats_from_lists(students, all_health_records, financial_recor
     dashboard_stats['tong_du_kien'] = 15000000
 
     return dashboard_stats
-
-
-def get_gender_chart_data(students):
-    """Chuẩn bị dữ liệu cho biểu đồ tròn giới tính."""
-    male_count = sum(1 for s in students if s.get('gender') == 'Nam')
-    female_count = len(students) - male_count
-
-    return {
-        'labels': ['Trẻ Nam', 'Trẻ Nữ'],
-        'data': [male_count, female_count],
-        'colors': ['#5BC0EB', '#FF6B6B']
-    }
-
-
-def get_revenue_chart_data(financial_records):
-    """Chuẩn bị dữ liệu cho biểu đồ vòng cung tỷ lệ thanh toán."""
-    total_invoices = len(financial_records)
-    paid_count = sum(1 for r in financial_records if r.get('paid_status') is True)
-    unpaid_count = total_invoices - paid_count
-
-    return {
-        'labels': ['Đã thanh toán', 'Chưa thanh toán'],
-        'data': [paid_count, unpaid_count],
-        'colors': ['#10B981', '#F59E0B']
-    }
-
-
-def get_average_weight_chart_data(all_health_records):
-    """Tính toán cân nặng trung bình theo ngày (ví dụ 7 ngày gần nhất)."""
-    daily_weights = {}
-
-    for record in all_health_records:
-        record_date = record['date']
-        weight = record.get('weight')
-        if weight is not None:
-            try:
-                weight_val = float(weight)
-                if record_date not in daily_weights:
-                    daily_weights[record_date] = []
-                daily_weights[record_date].append(weight_val)
-            except ValueError:
-                pass
-
-    sorted_dates = sorted(daily_weights.keys(), reverse=True)[:7]
-    sorted_dates.sort()
-
-    labels = []
-    data = []
-    for d in sorted_dates:
-        try:
-            date_obj = datetime.strptime(d, '%Y-%m-%d')
-            labels.append(date_obj.strftime('%d/%m'))
-        except ValueError:
-            labels.append(d)
-
-        if daily_weights[d]:
-            data.append(round(sum(daily_weights[d]) / len(daily_weights[d]), 2))
-        else:
-            data.append(None)
-
-    return {
-        'labels': labels,
-        'data': data,
-        'title': "Cân nặng trung bình"
-    }
-
 
 # ==================== STATISTICS FUNCTIONS ====================
 

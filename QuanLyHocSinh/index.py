@@ -1,6 +1,3 @@
-# index.py - Main Application Routes
-# File này khởi tạo Flask app và định nghĩa các route chính
-
 # Standard library
 import hashlib
 import calendar
@@ -28,25 +25,19 @@ except ImportError:
 # ==================== USER LOADER ====================
 @login_manager.user_loader
 def load_user(user_id):
-    """
-    Flask-Login user loader
-    """
     return dao.get_user_by_id(user_id)
 
 
 # ==================== AUTHENTICATION ROUTES ====================
 @app.route('/login')
 def login_view():
-    """
-    Hiển thị trang đăng nhập
-    """
     return render_template('login.html')
 
 
 @app.route('/login', methods=['POST'])
 def login_process():
     """
-    Xử lý đăng nhập và redirect theo role
+    Xử lý đăng nhập và phân quyền theo role
     """
     username = request.form.get('username')
     password = request.form.get('password')
@@ -56,63 +47,25 @@ def login_process():
     if user:
         login_user(user=user)
 
-        # Kiểm tra role và redirect tương ứng
+        # Kiểm tra role và phân quyền tương ứng
         from QuanLyHocSinh.model import UserRole
-
+        
         # Nếu có tham số next, ưu tiên redirect theo next
         next_page = request.args.get('next')
         if next_page:
             return redirect(next_page)
 
-        # Redirect theo role
+        # phân quyền theo role
         if user.user_role == UserRole.ADMIN:
             return redirect('/admin')
-        else:  # TEACHER hoặc role khác
+        else:  
             return redirect('/')
 
     # Nếu đăng nhập thất bại, quay về trang login với thông báo lỗi
     return render_template('login.html', error='Tên đăng nhập hoặc mật khẩu không đúng!')
 
-
-@app.route('/register')
-def register_view():
-    """
-    Hiển thị trang đăng ký
-    """
-    return render_template('register.html')
-
-
-@app.route('/register', methods=['POST'])
-def register_process():
-    """
-    Xử lý đăng ký người dùng mới
-    """
-    data = request.form
-
-    password = data.get('password')
-    confirm = data.get('confirm')
-
-    if password != confirm:
-        err_msg = 'Mật khẩu không khớp!'
-        return render_template('register.html', err_msg=err_msg)
-
-    try:
-        dao.add_user(
-            name=data.get('name'),
-            username=data.get('username'),
-            password=password,
-            email=data.get('email')
-        )
-        return redirect('/login')
-    except Exception as ex:
-        return render_template('register.html', err_msg=str(ex))
-
-
 @app.route('/logout')
 def logout_process():
-    """
-    Đăng xuất
-    """
     logout_user()
     return redirect('/login')
 
@@ -121,24 +74,18 @@ def logout_process():
 @app.route('/')
 @login_required
 def index():
-    """
-    Trang Dashboard/Homepage sau khi đăng nhập
-    """
     teacher_id = current_user.id
     teacher_name = f"{current_user.lastName} {current_user.firstName}"
     
     # Lấy thông tin lớp học
     from QuanLyHocSinh.model import Class
     teacher_class = Class.query.filter_by(teacher_id=teacher_id, active=True).first()
-    class_name = teacher_class.name if teacher_class else "Hoa Mai"
-    
-    _, current_student_count = dao.get_teacher_class_info(teacher_id)
-    
+    class_name = teacher_class.name if teacher_class else "Bạn chưa có lớp học"
+        
     return render_template(
         "index.html",
         teacher_name=teacher_name,
         class_name=class_name,
-        current_student_count=current_student_count
     )
 
 
@@ -162,9 +109,6 @@ def students():
     )
 
     students = pagination.get('students')
-
-    # Lấy bản ghi sức khỏe MỚI NHẤT của các học sinh
-    # (thay vì chỉ lấy hôm nay để luôn hiển thị dữ liệu)
     latest_records = dao.get_latest_health_records()
 
     students_view = dao.build_student_view(
@@ -235,7 +179,7 @@ def health_management():
     # Lấy các filter khác
     page = request.args.get('page', 1, type=int)
     keyword = request.args.get('keyword', '')
-    updated_status = request.args.get('updated_status')  # "updated" / "not_updated" / None
+    updated_status = request.args.get('updated_status')
 
     teacher_id = current_user.id
     teacher_class_info = dao.get_teacher_class_info(teacher_id)
@@ -303,13 +247,13 @@ def meal_management():
     """
     Trang quản lý bữa ăn theo tuần
     """
-    # 1. Get current week or week from query param
+    # 1. Lấy tuần cần xem
     week_offset = request.args.get('week', 0, type=int)  # 0 = current week, -1 = last week, +1 = next week
     
-    # 2. Calculate week start/end dates
+    # 2. Tính ngày bắt đầu và kết thúc của tuần
     week_dates = dao.get_week_dates(week_offset)
     
-    # 3. Load students from teacher's class
+    # 3. Lấy danh sách học sinh
     teacher_id = current_user.id
     teacher_class = dao.get_class_by_teacher_id(teacher_id)
     class_id = teacher_class.id if teacher_class else None
@@ -319,27 +263,27 @@ def meal_management():
         page_size=100  # Load all students
     ).get('students', [])
     
-    # 4. Load meal attendance for the week
+    # 4. Lấy danh sách bữa ăn
     student_ids = [s.id for s in students]
     meal_data = dao.get_weekly_meal_attendance(
         student_ids=student_ids,
         week_dates=week_dates
     )
     
-    # 5. Prepare view data
+    # 5. Chuẩn bị dữ liệu hiển thị
     students_data = []
     today = date.today()
     meal_cost_per_day = dao.get_system_config('TIEN_AN_MOT_NGAY', default=30000)
     
     for s in students:
-        # Calculate monthly total
+        # Tính tổng bữa ăn
         total_meals_month = dao.count_meal_days(
             student_id=s.id,
             month=today.month,
             year=today.year
         )
         
-        # Get list of meal dates
+        # Lấy danh sách ngày ăn
         meal_dates = dao.get_meal_dates(
             student_id=s.id,
             month=today.month,
@@ -372,7 +316,7 @@ def meal_management():
 @login_required
 def save_meal_attendance():
     """
-    Lưu dữ liệu chấm công ăn uống (hỗ trợ cả single day và weekly)
+    Lưu dữ liệu tick ăn uống
     """
     data = request.get_json()
     
@@ -431,14 +375,13 @@ def export_meal_attendance():
     month = request.args.get('month', date.today().month, type=int)
     year = request.args.get('year', date.today().year, type=int)
     
-    # Get teacher's class
     teacher_id = current_user.id
     teacher_class = dao.get_class_by_teacher_id(teacher_id)
     
     if not teacher_class:
         return jsonify({'success': False, 'message': 'Không tìm thấy lớp học'}), 404
     
-    # Get all students in class
+    # Lấy danh sách học sinh
     students = dao.load_students(
         class_id=teacher_class.id,
         page_size=100
@@ -450,7 +393,7 @@ def export_meal_attendance():
         return jsonify({'success': False, 'message': 'Không có học sinh'}), 404
     
     try:
-        # Generate Excel in memory (BytesIO)
+        # Tạo Excel in memory (BytesIO)
         excel_buffer = dao.export_meal_attendance_excel(
             student_ids=student_ids,
             month=month,
@@ -458,7 +401,7 @@ def export_meal_attendance():
             class_name=teacher_class.name
         )
         
-        # Return file for download from memory
+        # Trả về file để download từ bộ nhớ
         return send_file(
             excel_buffer,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -489,18 +432,6 @@ def tuition():
 
     # Lấy class của giáo viên
     class_id, _ = dao.get_teacher_class_info(teacher_id)
-    
-    if not class_id:
-        # Nếu giáo viên không có lớp, hiển thị trang trống
-        return render_template(
-            "tuition.html",
-            invoices=[],
-            today=today_str,
-            base_meal_cost=meal_cost_per_day,
-            base_tuition=base_tuition,
-            selected_status=None,
-            keyword=None
-        )
 
     status = request.args.get('status')       # "paid" / "unpaid"
     keyword = request.args.get('keyword')     # search input
@@ -510,7 +441,7 @@ def tuition():
         month=month, 
         year=year, 
         keyword=keyword,
-        class_id=class_id  # Thêm filter theo class
+        class_id=class_id 
     )
 
     return render_template(
@@ -530,18 +461,15 @@ def export_tuition_report():
     """
     Xuất báo cáo chi phí học phí ra file Excel
     """
-    # Get parameters
     month = request.args.get('month', date.today().month, type=int)
     year = request.args.get('year', date.today().year, type=int)
-    
-    # Get teacher's class
     teacher_id = current_user.id
     class_id, _ = dao.get_teacher_class_info(teacher_id)
     
     if not class_id:
         return jsonify({'success': False, 'message': 'Không tìm thấy lớp học'}), 404
     
-    # Get financial records
+    # Lấy danh sách invoice, filter theo class
     invoices = dao.load_financial_records(
         month=month,
         year=year,
@@ -552,11 +480,11 @@ def export_tuition_report():
         return jsonify({'success': False, 'message': 'Không có dữ liệu'}), 404
     
     try:
-        # Get class name
+        # Lấy tên lớp
         teacher_class = dao.get_class_by_teacher_id(teacher_id)
         class_name = teacher_class.name if teacher_class else ""
         
-        # Generate Excel in memory (BytesIO)
+        # Tạo Excel in memory (BytesIO)
         excel_buffer = dao.export_tuition_report_excel(
             financial_records=invoices,
             month=month,
@@ -564,7 +492,7 @@ def export_tuition_report():
             class_name=class_name
         )
         
-        # Return file for download from memory
+        # Trả về file để download từ bộ nhớ
         return send_file(
             excel_buffer,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -656,10 +584,7 @@ def pay_tuition_fee():
     
     # Nếu đã có invoice, gọi hàm cũ
     result = dao.pay_invoice(invoice_id)
-    
-    if isinstance(result, tuple):
-        response, status_code = result
-        return jsonify(response), status_code
+
     
     return jsonify({
         'success': True,
@@ -678,15 +603,15 @@ def export_invoice_pdf(invoice_id):
     from QuanLyHocSinh.model import MealAttendance
     
     def remove_accents(text):
-        """Remove Vietnamese accents from text"""
+        """Loại bỏ các dấu từ văn bản"""
         if not text:
             return text
-        # Normalize to NFD (decomposed form)
+        # Chuyển đổi thành dạng NFD (decomposed form)
         nfd = unicodedata.normalize('NFD', str(text))
-        # Filter out diacritical marks
+        # Loại bỏ các dấu
         return ''.join(char for char in nfd if unicodedata.category(char) != 'Mn')
     
-    # Check if PDF support is available
+    # Kiểm tra xem PDF support có sẵn hay không
     if not HAS_PDF_SUPPORT:
         abort(500, description="PDF export not available. Please install xhtml2pdf: pip install xhtml2pdf")
     
@@ -695,11 +620,11 @@ def export_invoice_pdf(invoice_id):
     if not data:
         abort(404, description="Invoice not found")
     
-    # Remove accents from all text data
+    # Loại bỏ các dấu từ tất cả dữ liệu văn bản
     student = data['student']
     invoice = data['invoice']
     
-    # Create cleaned data for PDF
+    # Tạo dữ liệu sạch cho PDF
     pdf_data = {
         'student': {
             'firstName': remove_accents(student.firstName),
@@ -708,7 +633,7 @@ def export_invoice_pdf(invoice_id):
             'parentPhone': student.parentPhone,
             'class_': {
                 'name': remove_accents(student.class_.name)
-            } if student.class_ else {'name': 'Chua xep lop'}
+            }
         },
         'invoice': invoice
     }
@@ -716,12 +641,12 @@ def export_invoice_pdf(invoice_id):
     # Render HTML template - use PDF-specific template
     html_content = render_template('invoice_pdf.html', **pdf_data)
     
-    # Suppress CSS parser warnings
+    # Tắt cảnh báo CSS parser
     logging.getLogger('xhtml2pdf').setLevel(logging.ERROR)
     
     pdf_buffer = BytesIO()
     
-    # Generate PDF in memory
+    # Tạo PDF trong bộ nhớ
     try:
         pisa_status = pisa.CreatePDF(
             src=html_content,
@@ -735,10 +660,10 @@ def export_invoice_pdf(invoice_id):
     if pisa_status.err:
         abort(500, description="Error generating PDF")
     
-    # Seek to beginning of buffer
+    # Tìm đến đầu vùng đệm
     pdf_buffer.seek(0)
     
-    # XÓA meal_attendance của tháng này sau khi xuất PDF
+    # Xóa meal_attendance của tháng này sau khi xuất PDF
     # (số ngày ăn đã được lưu trong invoice.mealDays)
     try:
         month = invoice.month
@@ -753,7 +678,7 @@ def export_invoice_pdf(invoice_id):
         db.session.rollback()
         print(f"Warning: Could not delete meal_attendance: {e}")
     
-    # Return PDF from memory (not from file)
+    # Trả về PDF từ bộ nhớ
     return send_file(
         pdf_buffer,
         mimetype='application/pdf',
