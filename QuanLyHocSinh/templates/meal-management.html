@@ -491,195 +491,188 @@
 </style>
 
 <script>
-    // Store notes for each student-date combination
-    const notesData = {};
+    // Wait for DOM to be fully loaded before accessing elements
+    document.addEventListener('DOMContentLoaded', function () {
+        // Store notes for each student-date combination
+        const notesData = {};
 
-    // Modal elements
-    const modal = document.getElementById('note-modal');
-    const closeModal = document.querySelector('.close-modal');
-    const cancelBtn = document.getElementById('cancel-note-btn');
-    const saveNoteBtn = document.getElementById('save-note-btn');
-    const noteInput = document.getElementById('note-input');
-    let currentStudentId = null;
-    let currentDate = null;
+        // Modal elements
+        const modal = document.getElementById('note-modal');
+        const closeModal = document.querySelector('.close-modal');
+        const cancelBtn = document.getElementById('cancel-note-btn');
+        const saveNoteBtn = document.getElementById('save-note-btn');
+        const noteInput = document.getElementById('note-input');
+        let currentStudentId = null;
+        let currentDate = null;
 
-    // Checkbox change handler
-    document.querySelectorAll('.meal-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', (e) => {
-            const noteBtn = e.target.parentElement.querySelector('.note-btn');
-            if (e.target.checked) {
-                noteBtn.style.display = 'inline-block';
-            } else {
-                noteBtn.style.display = 'none';
-                // Clear note when unchecking
-                const studentId = e.target.closest('tr').dataset.studentId;
-                const date = e.target.dataset.date;
-                const noteKey = `${studentId}-${date}`;
-                delete notesData[noteKey];
-                noteBtn.classList.remove('has-note');
-            }
-        });
-    });
-
-    // ===== HEADER CHECKBOX - TOGGLE ALL FOR A DAY =====
-    document.querySelectorAll('.header-checkbox').forEach(headerCheckbox => {
-        headerCheckbox.addEventListener('change', function () {
-            const day = this.dataset.day;
-            const isChecked = this.checked;
-
-            // Find all checkboxes for this day and toggle them
-            document.querySelectorAll(`.meal-checkbox[data-date="${day}"]`).forEach(checkbox => {
-                checkbox.checked = isChecked;
-
-                // Trigger change event to update note button visibility
-                const event = new Event('change', { bubbles: true });
-                checkbox.dispatchEvent(event);
+        // Checkbox change handler
+        document.querySelectorAll('.meal-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                const noteBtn = e.target.parentElement.querySelector('.note-btn');
+                if (e.target.checked) {
+                    noteBtn.style.display = 'inline-block';
+                } else {
+                    noteBtn.style.display = 'none';
+                    // Clear note when unchecking
+                    const studentId = e.target.closest('tr').dataset.studentId;
+                    const date = e.target.dataset.date;
+                    const noteKey = `${studentId}-${date}`;
+                    delete notesData[noteKey];
+                    noteBtn.classList.remove('has-note');
+                }
             });
         });
-    });
 
+        // ===== HEADER CHECKBOX - TOGGLE ALL FOR A DAY =====
+        document.querySelectorAll('.header-checkbox').forEach(headerCheckbox => {
+            headerCheckbox.addEventListener('change', function () {
+                const day = this.dataset.day;
+                const isChecked = this.checked;
 
-    // Note button click handler
-    document.querySelectorAll('.note-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const tr = e.target.closest('tr');
-            const studentId = tr.dataset.studentId;
-            const studentName = tr.querySelector('.student-name').textContent;
-            const checkbox = e.target.parentElement.querySelector('.meal-checkbox');
-            const date = checkbox.dataset.date;
+                // Find all checkboxes for this day and toggle them
+                document.querySelectorAll(`.meal-checkbox[data-date="${day}"]`).forEach(checkbox => {
+                    checkbox.checked = isChecked;
 
-            // Open modal
-            currentStudentId = studentId;
-            currentDate = date;
-            document.getElementById('modal-student-name').textContent = studentName;
-            document.getElementById('modal-date').textContent = formatDate(date);
-
-            // Load existing note
-            const noteKey = `${studentId}-${date}`;
-            noteInput.value = notesData[noteKey] || '';
-
-            modal.style.display = 'block';
-        });
-    });
-
-    // Close modal handlers
-    closeModal.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-
-    cancelBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-
-    window.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.style.display = 'none';
-        }
-    });
-
-    // Save note button
-    saveNoteBtn.addEventListener('click', () => {
-        const note = noteInput.value.trim();
-        const noteKey = `${currentStudentId}-${currentDate}`;
-
-        if (note) {
-            notesData[noteKey] = note;
-            // Update button appearance
-            const tr = document.querySelector(`tr[data-student-id="${currentStudentId}"]`);
-            const checkbox = tr.querySelector(`.meal-checkbox[data-date="${currentDate}"]`);
-            const noteBtn = checkbox.parentElement.querySelector('.note-btn');
-            noteBtn.classList.add('has-note');
-        } else {
-            delete notesData[noteKey];
-            const tr = document.querySelector(`tr[data-student-id="${currentStudentId}"]`);
-            const checkbox = tr.querySelector(`.meal-checkbox[data-date="${currentDate}"]`);
-            const noteBtn = checkbox.parentElement.querySelector('.note-btn');
-            noteBtn.classList.remove('has-note');
-        }
-
-        modal.style.display = 'none';
-    });
-
-    // Format date helper
-    function formatDate(dateStr) {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    }
-
-    // Save button handler
-    const saveBtn = document.getElementById('save-meals');
-    saveBtn.addEventListener('click', () => {
-        const data = [];
-
-        // Collect all checkbox states and notes
-        document.querySelectorAll('.weekly-meal-grid tbody tr').forEach(tr => {
-            const studentId = tr.dataset.studentId;
-
-            tr.querySelectorAll('.meal-checkbox').forEach(checkbox => {
-                const date = checkbox.dataset.date;
-                const ate = checkbox.checked;
-                const noteKey = `${studentId}-${date}`;
-                const note = notesData[noteKey] || '';
-
-                data.push({
-                    student_id: parseInt(studentId),
-                    date: date,
-                    ate: ate,
-                    note: note
+                    // Trigger change event to update note button visibility
+                    const event = new Event('change', { bubbles: true });
+                    checkbox.dispatchEvent(event);
                 });
             });
         });
 
-        console.log('Sending attendance data with notes:', data);
 
-        // Send to server
-        fetch('/meal-attendance', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-            .then(res => res.json())
-            .then(result => {
-                if (result.success) {
-                    // Lưu thông báo vào sessionStorage để hiển thị sau khi reload
-                    sessionStorage.setItem('flashMessage', JSON.stringify({
-                        type: 'success',
-                        message: result.message
-                    }));
-                    // Reload ngay lập tức
-                    window.location.reload();
-                } else {
-                    showError('❌ Lỗi: ' + (result.message || 'Không thể lưu dữ liệu'));
-                }
-            })
-            .catch(err => {
-                console.error('Error:', err);
-                showError('❌ Có lỗi xảy ra khi gửi dữ liệu!');
+        // Note button click handler
+        document.querySelectorAll('.note-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tr = e.currentTarget.closest('tr');
+                const studentId = tr.dataset.studentId;
+                const studentName = tr.querySelector('.student-name').textContent;
+                const checkbox = e.currentTarget.parentElement.querySelector('.meal-checkbox');
+                const date = checkbox.dataset.date;
+
+                // Open modal
+                currentStudentId = studentId;
+                currentDate = date;
+                document.getElementById('modal-student-name').textContent = studentName;
+                document.getElementById('modal-date').textContent = formatDate(date);
+
+                // Load existing note
+                const noteKey = `${studentId}-${date}`;
+                noteInput.value = notesData[noteKey] || '';
+
+                modal.style.display = 'block';
             });
-    });
+        });
 
-    // Hiển thị thông báo sau khi reload (nếu có)
-    window.addEventListener('DOMContentLoaded', () => {
+        // Close modal handlers
+        closeModal.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+
+        // Save note button
+        saveNoteBtn.addEventListener('click', () => {
+            const note = noteInput.value.trim();
+            const noteKey = `${currentStudentId}-${currentDate}`;
+
+            if (note) {
+                notesData[noteKey] = note;
+                // Update button appearance
+                const tr = document.querySelector(`tr[data-student-id="${currentStudentId}"]`);
+                const checkbox = tr.querySelector(`.meal-checkbox[data-date="${currentDate}"]`);
+                const noteBtn = checkbox.parentElement.querySelector('.note-btn');
+                noteBtn.classList.add('has-note');
+            } else {
+                delete notesData[noteKey];
+                const tr = document.querySelector(`tr[data-student-id="${currentStudentId}"]`);
+                const checkbox = tr.querySelector(`.meal-checkbox[data-date="${currentDate}"]`);
+                const noteBtn = checkbox.parentElement.querySelector('.note-btn');
+                noteBtn.classList.remove('has-note');
+            }
+
+            modal.style.display = 'none';
+        });
+
+        // Format date helper
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+
+        // Save button handler
+        const saveBtn = document.getElementById('save-meals');
+        saveBtn.addEventListener('click', () => {
+            const data = [];
+
+            // Collect all checkbox states and notes
+            document.querySelectorAll('.weekly-meal-grid tbody tr').forEach(tr => {
+                const studentId = tr.dataset.studentId;
+
+                tr.querySelectorAll('.meal-checkbox').forEach(checkbox => {
+                    const date = checkbox.dataset.date;
+                    const ate = checkbox.checked;
+                    const noteKey = `${studentId}-${date}`;
+                    const note = notesData[noteKey] || '';
+
+                    data.push({
+                        student_id: parseInt(studentId),
+                        date: date,
+                        ate: ate,
+                        note: note
+                    });
+                });
+            });
+
+            console.log('Sending attendance data with notes:', data);
+
+            // Send to server
+            fetch('/meal-attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+                .then(res => res.json())
+                .then(result => {
+                    if (result.success) {
+                        // Lưu thông báo vào sessionStorage để hiển thị sau khi reload
+                        sessionStorage.setItem('flashMessage', JSON.stringify({
+                            type: 'success',
+                            message: result.message
+                        }));
+                        // Reload ngay lập tức
+                        window.location.reload();
+                    } else {
+                        showError('❌ Lỗi: ' + (result.message || 'Không thể lưu dữ liệu'));
+                    }
+                })
+                .catch(err => {
+                    console.error('Error:', err);
+                    showError('❌ Có lỗi xảy ra khi gửi dữ liệu!');
+                });
+        });
+
+
+        // Hiển thị thông báo sau khi reload (nếu có)
         const flashMessage = sessionStorage.getItem('flashMessage');
         if (flashMessage) {
             const { type, message } = JSON.parse(flashMessage);
-
-            // Hiển thị thông báo
-            if (type === 'success') {
-                showSuccess(message);
-            } else if (type === 'error') {
-                showError(message);
-            } else if (type === 'warning') {
-                showWarning(message);
-            } else if (type === 'info') {
-                showInfo(message);
-            }
-
-            // Xóa thông báo khỏi sessionStorage
+            if (type === 'success') showSuccess(message);
+            else if (type === 'error') showError(message);
+            else if (type === 'warning') showWarning(message);
+            else if (type === 'info') showInfo(message);
             sessionStorage.removeItem('flashMessage');
         }
-    });
+    });  // Close DOMContentLoaded wrapper
 </script>
 
 {% include 'layout/message.html' %}
