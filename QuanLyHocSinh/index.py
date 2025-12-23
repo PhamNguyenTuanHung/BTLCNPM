@@ -1,16 +1,28 @@
 # index.py - Main Application Routes
 # File này khởi tạo Flask app và định nghĩa các route chính
 
-from flask import render_template, request, redirect, jsonify, abort
+# Standard library
+import hashlib
+import calendar
+import os
+import logging
+from datetime import date, datetime
+from io import BytesIO
+
+# Third-party
+from flask import render_template, request, redirect, jsonify, abort, send_file
 from flask_login import login_user, logout_user, current_user, login_required
 
-from QuanLyHocSinh import app, login as login_manager, db
-from QuanLyHocSinh import dao
-from QuanLyHocSinh.ultils import ultils
-import admin
+# Application
+from QuanLyHocSinh import app, dao, login as login_manager, db, admin
+from QuanLyHocSinh.model import Student, HealthRecord, Invoice, MealAttendance
 
-
-# Import admin để khởi tạo Flask-Admin
+# PDF support (optional)
+try:
+    from xhtml2pdf import pisa
+    HAS_PDF_SUPPORT = True
+except ImportError:
+    HAS_PDF_SUPPORT = False
 
 
 # ==================== USER LOADER ====================
@@ -107,9 +119,35 @@ def logout_process():
 
 # ==================== STUDENT MANAGEMENT ROUTES ====================
 @app.route('/')
+@login_required
+def index():
+    """
+    Trang Dashboard/Homepage sau khi đăng nhập
+    """
+    teacher_id = current_user.id
+    teacher_name = f"{current_user.lastName} {current_user.firstName}"
+    
+    # Lấy thông tin lớp học
+    from QuanLyHocSinh.model import Class
+    teacher_class = Class.query.filter_by(teacher_id=teacher_id, active=True).first()
+    class_name = teacher_class.name if teacher_class else "Hoa Mai"
+    
+    _, current_student_count = dao.get_teacher_class_info(teacher_id)
+    
+    return render_template(
+        "index.html",
+        teacher_name=teacher_name,
+        class_name=class_name,
+        current_student_count=current_student_count
+    )
+
+
 @app.route('/students')
 @login_required
-def students_page():
+def students():
+    """
+    Trang quản lý học sinh
+    """
     teacher_id = current_user.id
     page = request.args.get("page", 1, type=int)
     keyword = request.args.get("keyword", "").strip()
@@ -125,11 +163,13 @@ def students_page():
 
     students = pagination.get('students')
 
-    today_records = dao.get_today_health_records()
+    # Lấy bản ghi sức khỏe MỚI NHẤT của các học sinh
+    # (thay vì chỉ lấy hôm nay để luôn hiển thị dữ liệu)
+    latest_records = dao.get_latest_health_records()
 
     students_view = dao.build_student_view(
         students,
-        health_records=today_records,
+        health_records=latest_records,
         include_age=True,
         include_gender=True,
         include_parent=True,
@@ -169,7 +209,7 @@ def update_student():
     student_id = data.get('id')
     temp = data.get('temp')
     weight = data.get('weight')
-    result = dao.save_health_record(student_id, record_date=None, temp=temp, weight=weight, note=None)
+    result = dao.save_health_record(student_id,record_date=None, temp=temp, weight=weight,note=None)
 
     if result:
         return jsonify({"success": True, "student": result})
@@ -195,9 +235,7 @@ def health_management():
     # Lấy các filter khác
     page = request.args.get('page', 1, type=int)
     keyword = request.args.get('keyword', '')
-    updated_status = request.args.get('updated_status')
-    fever = request.args.get('fever')
-
+    updated_status = request.args.get('updated_status')  # "updated" / "not_updated" / None
 
     teacher_id = current_user.id
     teacher_class_info = dao.get_teacher_class_info(teacher_id)
@@ -208,9 +246,8 @@ def health_management():
         date_filter=selected_date,
         page=page,
         kw=keyword,
-        updated_status=updated_status,
-        page_size=10,
-        fever=fever
+        updated_status=updated_status,  # thêm filter
+        page_size=10
     )
 
     students_view = dao.build_student_view(
@@ -229,7 +266,7 @@ def health_management():
         students=students_view,
         today=today_str,
         selected_date=selected_date_str,
-        updated_status=updated_status,  # truyền vào template để đánh dấu dropdown
+        updated_status=updated_status,   # truyền vào template để đánh dấu dropdown
         keyword=keyword,
         progress_stats=progress_stats,
         pagination=result['pagination']
@@ -245,7 +282,7 @@ def update_heath():
     note = data['note']
     student_id = data['id']
     record_date = date.today()
-    record = dao.save_health_record(student_id, record_date, weight, temp, note)
+    record =dao.save_health_record(student_id, record_date, weight, temp, note)
     return jsonify({
         'success': True,
         "record": {
@@ -263,82 +300,185 @@ def update_heath():
 @app.route('/meal-management')
 @login_required
 def meal_management():
-    today = date.today()
-    date_str = request.args.get('date')
-    kw = request.args.get('keyword', '').strip()
-
-    try:
-        selected_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else today
-    except ValueError:
-        selected_date = today
-
-    # --- Tính toán dải ngày trong tuần ---
-    start_of_week = selected_date - timedelta(days=selected_date.weekday())
-    dates_in_week = [(start_of_week + timedelta(days=i)).isoformat() for i in range(7)]
-
-    # Tính ngày cho nút Tuần trước / Tuần sau
-    prev_week_date = (start_of_week - timedelta(days=7)).isoformat()
-    next_week_date = (start_of_week + timedelta(days=7)).isoformat()
-
-    # --- Lấy dữ liệu học sinh ---
-    teacher_class = dao.get_class_by_teacher_id(current_user.id)
+    """
+    Trang quản lý bữa ăn theo tuần
+    """
+    # 1. Get current week or week from query param
+    week_offset = request.args.get('week', 0, type=int)  # 0 = current week, -1 = last week, +1 = next week
+    
+    # 2. Calculate week start/end dates
+    week_dates = dao.get_week_dates(week_offset)
+    
+    # 3. Load students from teacher's class
+    teacher_id = current_user.id
+    teacher_class = dao.get_class_by_teacher_id(teacher_id)
     class_id = teacher_class.id if teacher_class else None
-
-    # Load toàn bộ học sinh trong lớp (hoặc theo search)
-    pagination_data = dao.load_students(class_id=class_id, kw=kw, page_size=100)
-    students = pagination_data['students']
-
-    meal_cost_per_day = dao.get_system_config('mealFee', default=50000)
-
+    
+    students = dao.load_students(
+        class_id=class_id,
+        page_size=100  # Load all students
+    ).get('students', [])
+    
+    # 4. Load meal attendance for the week
+    student_ids = [s.id for s in students]
+    meal_data = dao.get_weekly_meal_attendance(
+        student_ids=student_ids,
+        week_dates=week_dates
+    )
+    
+    # 5. Prepare view data
     students_data = []
+    today = date.today()
+    meal_cost_per_day = dao.get_system_config('TIEN_AN_MOT_NGAY', default=30000)
+    
     for s in students:
-        weekly_attendance = dao.get_student_attendance_for_week(s.id, dates_in_week)
-        total_meals_month = dao.count_meal_days(s.id, selected_date.month, selected_date.year)
+        # Calculate monthly total
+        total_meals_month = dao.count_meal_days(
+            student_id=s.id,
+            month=today.month,
+            year=today.year
+        )
+        
+        # Get list of meal dates
+        meal_dates = dao.get_meal_dates(
+            student_id=s.id,
+            month=today.month,
+            year=today.year
+        )
 
         students_data.append({
             'id': s.id,
             'name': f"{s.lastName} {s.firstName}",
-            'daily_status': weekly_attendance,
-            'total_meals_eaten': total_meals_month,
+            'weekly_meals': meal_data.get(s.id, {}),
+            'total_meals_month': total_meals_month,
+            'meal_dates': meal_dates,
             'meal_cost': meal_cost_per_day
         })
 
     return render_template(
         "meal-management.html",
         students=students_data,
-        dates_in_week=dates_in_week,
-        selected_date=selected_date.isoformat(),
-        prev_week=prev_week_date,
-        next_week=next_week_date,
-        keyword=kw
+        week_dates=week_dates,
+        week_offset=week_offset,
+        meal_cost=meal_cost_per_day,
+        current_month=today.month,
+        current_year=today.year
     )
+
+
 
 
 @app.route('/meal-attendance', methods=['POST'])
 @login_required
 def save_meal_attendance():
-    # 1. Nhận data từ request
+    """
+    Lưu dữ liệu chấm công ăn uống (hỗ trợ cả single day và weekly)
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'message': 'Không có dữ liệu'}), 400
+    
+    try:
+        dao.save_weekly_meal_attendance(
+            attendance_data=data,
+            teacher_id=current_user.id
+        )
+        return jsonify({'success': True, 'message': 'Đã lưu điểm danh thành công!'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/meal-attendance/update-note', methods=['POST'])
+def update_note():
     data = request.json
+    student_id = data['student_id']
+    date = data['date']
+    note = data.get('note')
 
-    if not data or not isinstance(data, list):
-        return jsonify({
-            'success': False,
-            'message': 'Dữ liệu không hợp lệ hoặc trống'
-        }), 400
+    meal_note = MealAttendance.query.filter_by(
+        student_id=student_id,
+        attendance_date=date
+    ).first()
+    print(meal_note)
+    print(note)
 
-    # 2. Gọi logic xử lý từ DAO
-    success, message = dao.update_meal_attendance(data, current_user.id)
+    if note:
+        if meal_note:
+            meal_note.note = note
+        else:
+            meal_note = MealAttendance(
+                student_id=student_id,
+                attendance_date=date,
+                note=note
+            )
+            db.session.add(meal_note)
+    else:
+        if meal_note:
+            db.session.delete(meal_note)
 
-    # 3. Trả về kết quả phù hợp cho Swal.fire nhận diện
-    if success:
-        return jsonify({'success': True, 'message': message})
+    db.session.commit()
+    return jsonify({'success': True})
 
-    return jsonify({'success': False, 'message': message}), 500
+
+@app.route('/api/meal-attendance/export-excel')
+@login_required
+def export_meal_attendance():
+    """
+    Xuất bảng điểm danh bữa ăn ra file Excel
+    """
+    # Get parameters
+    month = request.args.get('month', date.today().month, type=int)
+    year = request.args.get('year', date.today().year, type=int)
+    
+    # Get teacher's class
+    teacher_id = current_user.id
+    teacher_class = dao.get_class_by_teacher_id(teacher_id)
+    
+    if not teacher_class:
+        return jsonify({'success': False, 'message': 'Không tìm thấy lớp học'}), 404
+    
+    # Get all students in class
+    students = dao.load_students(
+        class_id=teacher_class.id,
+        page_size=100
+    ).get('students', [])
+    
+    student_ids = [s.id for s in students]
+    
+    if not student_ids:
+        return jsonify({'success': False, 'message': 'Không có học sinh'}), 404
+    
+    try:
+        # Generate Excel in memory (BytesIO)
+        excel_buffer = dao.export_meal_attendance_excel(
+            student_ids=student_ids,
+            month=month,
+            year=year,
+            class_name=teacher_class.name
+        )
+        
+        # Return file for download from memory
+        return send_file(
+            excel_buffer,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'diem_danh_an_{month}_{year}.xlsx'
+        )
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 
 
 # ==================== TUITION MANAGEMENT ROUTES ====================
 @app.route('/tuition')
+@login_required
 def tuition():
+    """
+    Trang quản lý học phí - chỉ hiển thị học sinh trong lớp của giáo viên
+    """
+    teacher_id = current_user.id
     today_str = date.today().isoformat()
     base_tuition = dao.get_system_config('tuition', default=3000000)
     meal_cost_per_day = dao.get_system_config('mealFee', default=50000)
@@ -347,14 +487,31 @@ def tuition():
     month = today.month
     year = today.year
 
-    status = request.args.get('status')  # "paid" / "unpaid"
-    keyword = request.args.get('keyword')  # search input
+    # Lấy class của giáo viên
+    class_id, _ = dao.get_teacher_class_info(teacher_id)
+    
+    if not class_id:
+        # Nếu giáo viên không có lớp, hiển thị trang trống
+        return render_template(
+            "tuition.html",
+            invoices=[],
+            today=today_str,
+            base_meal_cost=meal_cost_per_day,
+            base_tuition=base_tuition,
+            selected_status=None,
+            keyword=None
+        )
 
-    invoices = dao.load_financial_records(month=month,
-                                          year=year,
-                                          status=status,
-                                          keyword=keyword,
-                                          teacher_id=current_user.id)
+    status = request.args.get('status')       # "paid" / "unpaid"
+    keyword = request.args.get('keyword')     # search input
+
+    # Lấy danh sách invoice, filter theo class
+    invoices = dao.load_financial_records(
+        month=month, 
+        year=year, 
+        keyword=keyword,
+        class_id=class_id  # Thêm filter theo class
+    )
 
     return render_template(
         "tuition.html",
@@ -365,6 +522,57 @@ def tuition():
         selected_status=status,
         keyword=keyword
     )
+
+
+@app.route('/api/tuition/export-excel')
+@login_required
+def export_tuition_report():
+    """
+    Xuất báo cáo chi phí học phí ra file Excel
+    """
+    # Get parameters
+    month = request.args.get('month', date.today().month, type=int)
+    year = request.args.get('year', date.today().year, type=int)
+    
+    # Get teacher's class
+    teacher_id = current_user.id
+    class_id, _ = dao.get_teacher_class_info(teacher_id)
+    
+    if not class_id:
+        return jsonify({'success': False, 'message': 'Không tìm thấy lớp học'}), 404
+    
+    # Get financial records
+    invoices = dao.load_financial_records(
+        month=month,
+        year=year,
+        class_id=class_id
+    )
+    
+    if not invoices:
+        return jsonify({'success': False, 'message': 'Không có dữ liệu'}), 404
+    
+    try:
+        # Get class name
+        teacher_class = dao.get_class_by_teacher_id(teacher_id)
+        class_name = teacher_class.name if teacher_class else ""
+        
+        # Generate Excel in memory (BytesIO)
+        excel_buffer = dao.export_tuition_report_excel(
+            financial_records=invoices,
+            month=month,
+            year=year,
+            class_name=class_name
+        )
+        
+        # Return file for download from memory
+        return send_file(
+            excel_buffer,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'bao_cao_chi_phi_{month}_{year}.xlsx'
+        )
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 # ==================== INVOICE ROUTES ====================
@@ -380,12 +588,15 @@ def invoice(invoice_id):
         invoice=data['invoice']
     )
 
-
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 
 
 @app.route('/api/invoices/pay', methods=['POST'])
+@login_required
 def pay_tuition_fee():
+    """
+    Thanh toán học phí - tạo invoice nếu chưa có
+    """
     data = request.get_json()
 
     if not data or 'invoice_id' not in data:
@@ -395,170 +606,160 @@ def pay_tuition_fee():
         }), 400
 
     invoice_id = data['invoice_id']
-
-    dao.pay_invoice(invoice_id)
-
+    
+    # Nếu invoice_id là None, cần tạo mới
+    if invoice_id is None:
+        # Lấy student_id từ request (frontend cần gửi thêm)
+        student_id = data.get('student_id')
+        if not student_id:
+            return jsonify({
+                'success': False,
+                'message': 'Thiếu student_id'
+            }), 400
+        
+        # Tạo invoice mới
+        today = date.today()
+        month = today.month
+        year = today.year
+        
+        # Lấy config
+        base_tuition = dao.get_system_config('tuition', default=1500000)
+        meal_cost_per_day = dao.get_system_config('mealFee', default=30000)
+        
+        # Tính số bữa ăn
+        meal_days = dao.count_meal_days(student_id, month, year)
+        total_meal_cost = meal_days * meal_cost_per_day
+        total_amount = base_tuition + total_meal_cost
+        
+        # Tạo invoice
+        new_invoice = Invoice(
+            student_id=student_id,
+            teacher_id=current_user.id,
+            month=month,
+            year=year,
+            tuition=base_tuition,
+            mealDays=meal_days,
+            mealFee=meal_cost_per_day,
+            total=total_amount,
+            paymentDate=datetime.now(),
+            active=True
+        )
+        
+        db.session.add(new_invoice)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'invoice_id': new_invoice.id,
+            'message': 'Thanh toán thành công'
+        }), 200
+    
+    # Nếu đã có invoice, gọi hàm cũ
+    result = dao.pay_invoice(invoice_id)
+    
+    if isinstance(result, tuple):
+        response, status_code = result
+        return jsonify(response), status_code
+    
     return jsonify({
         'success': True,
     }), 200
 
 
-# ==================== STATISTICS ROUTES ====================
-@app.route('/statistics')
-def statistics():
+@app.route('/api/invoices/export-pdf/<int:invoice_id>')
+@login_required
+def export_invoice_pdf(invoice_id):
     """
-    Trang thống kê
+    Xuất hóa đơn ra file PDF
+    - Xóa meal_attendance của tháng sau khi xuất (giữ mealDays trong invoice)
     """
-    today_str = date.today().isoformat()
-
-    # 1. Lấy thống kê dashboard và dữ liệu biểu đồ từ DAO
-    dashboard_stats = dao.get_dashboard_stats(today_str)
-    chart_data = dao.get_chart_data()
-
-    return render_template(
-        "statistics.html",
-        stats=dashboard_stats,
-        gender_chart_data=chart_data['gender_chart'],
-        revenue_chart_data=chart_data['revenue_chart'],
-        weight_chart_data=chart_data['weight_chart']
-    )
-
-
-# ==================== ADMIN ROUTES ====================
-@app.route('/admin/class')
-def admin_class_management():
-    """
-    Trang quản lý lớp học (Admin)
-    """
-    classes_data = [
-        {
-            'id': 1,
-            'name': 'Lớp Mẫu Giáo 1',
-            'level': 'Mẫu giáo',
-            'teacher_name': 'Nguyễn Thị Lan',
-            'current_students': 20,
-            'max_capacity': 25,
-            'bg_color': '#DBEAFE'
+    import os
+    import unicodedata
+    from QuanLyHocSinh.model import MealAttendance
+    
+    def remove_accents(text):
+        """Remove Vietnamese accents from text"""
+        if not text:
+            return text
+        # Normalize to NFD (decomposed form)
+        nfd = unicodedata.normalize('NFD', str(text))
+        # Filter out diacritical marks
+        return ''.join(char for char in nfd if unicodedata.category(char) != 'Mn')
+    
+    # Check if PDF support is available
+    if not HAS_PDF_SUPPORT:
+        abort(500, description="PDF export not available. Please install xhtml2pdf: pip install xhtml2pdf")
+    
+    # Lấy dữ liệu invoice
+    data = dao.get_invoice_data(invoice_id)
+    if not data:
+        abort(404, description="Invoice not found")
+    
+    # Remove accents from all text data
+    student = data['student']
+    invoice = data['invoice']
+    
+    # Create cleaned data for PDF
+    pdf_data = {
+        'student': {
+            'firstName': remove_accents(student.firstName),
+            'lastName': remove_accents(student.lastName),
+            'parentName': remove_accents(student.parentName),
+            'parentPhone': student.parentPhone,
+            'class_': {
+                'name': remove_accents(student.class_.name)
+            } if student.class_ else {'name': 'Chua xep lop'}
         },
-        {
-            'id': 2,
-            'name': 'Lớp Mẫu Giáo 2',
-            'level': 'Mẫu giáo',
-            'teacher_name': 'Trần Thị Mai',
-            'current_students': 23,
-            'max_capacity': 25,
-            'bg_color': '#FCE7F3'
-        },
-        {
-            'id': 3,
-            'name': 'Lớp Nhà Trẻ 1',
-            'level': 'Nhà trẻ',
-            'teacher_name': 'Cô Lê Thị Hoa',
-            'current_students': 15,
-            'max_capacity': 20,
-            'bg_color': '#DBEAFE'
-        }
-    ]
-
-    total_students = sum(c['current_students'] for c in classes_data)
-    total_capacity = sum(c['max_capacity'] for c in classes_data)
-
-    return render_template(
-        "admin/class-management.html",
-        classes=classes_data,
-        total_students=total_students,
-        total_capacity=total_capacity,
+        'invoice': invoice
+    }
+    
+    # Render HTML template - use PDF-specific template
+    html_content = render_template('invoice_pdf.html', **pdf_data)
+    
+    # Suppress CSS parser warnings
+    logging.getLogger('xhtml2pdf').setLevel(logging.ERROR)
+    
+    pdf_buffer = BytesIO()
+    
+    # Generate PDF in memory
+    try:
+        pisa_status = pisa.CreatePDF(
+            src=html_content,
+            dest=pdf_buffer,
+            encoding='utf-8'
+        )
+    except Exception as e:
+        print(f"PDF Generation Error: {e}")
+        abort(500, description=f"Error generating PDF: {e}")
+    
+    if pisa_status.err:
+        abort(500, description="Error generating PDF")
+    
+    # Seek to beginning of buffer
+    pdf_buffer.seek(0)
+    
+    # XÓA meal_attendance của tháng này sau khi xuất PDF
+    # (số ngày ăn đã được lưu trong invoice.mealDays)
+    try:
+        month = invoice.month
+        year = invoice.year
+        MealAttendance.query.filter(
+            MealAttendance.student_id == student.id,
+            db.func.extract('month', MealAttendance.attendance_date) == month,
+            db.func.extract('year', MealAttendance.attendance_date) == year
+        ).delete(synchronize_session=False)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Warning: Could not delete meal_attendance: {e}")
+    
+    # Return PDF from memory (not from file)
+    return send_file(
+        pdf_buffer,
+        mimetype='application/pdf',
+        as_attachment=False,
+        download_name=f'invoice_{invoice_id}.pdf'
     )
-
-
-@app.route('/admin/class/<int:class_id>')
-def admin_class_students(class_id):
-    """
-    Trang quản lý học sinh của một lớp cụ thể (Admin)
-    """
-    today_str = date.today().isoformat()
-
-    # Lọc học sinh theo class_id
-    students = [s for s in ultils.load_students() if s.get('class_id') == class_id]
-    all_health_records = ultils.load_health_records()
-
-    # Tìm bản ghi sức khỏe mới nhất
-    current_records = {}
-    for record in all_health_records:
-        student_id = record['student_id']
-        record_date = record['date']
-
-        if student_id not in current_records or record_date > current_records[student_id]['date']:
-            current_records[student_id] = record
-
-    students_optimized = []
-    for student in students:
-        student_id = student['id']
-        student['current_record'] = current_records.get(student_id, {})
-        students_optimized.append(student)
-
-    return render_template(
-        "student.html",
-        students=students_optimized,
-        today=today_str
-    )
-
-
-@app.route('/admin/teacher')
-def admin_teacher_management():
-    """
-    Trang quản lý giáo viên (Admin)
-    """
-    teachers = [
-        {
-            'id': 101,
-            'name': 'Cô Nguyễn Thị Lan',
-            'class_name': 'Lớp Mẫu Giáo 1',
-            'email': 'lan.nguyen@school.edu.vn',
-            'phone': '0912345678',
-            'start_date': '1/9/2023',
-            'salary': '8.000.000 đ'
-        },
-        {
-            'id': 102,
-            'name': 'Cô Trần Thị Mai',
-            'class_name': 'Lớp Mẫu Giáo 2',
-            'email': 'mai.tran@school.edu.vn',
-            'phone': '0907654321',
-            'start_date': '1/9/2023',
-            'salary': '8.000.000 đ'
-        },
-        {
-            'id': 103,
-            'name': 'Cô Lê Thị Hoa',
-            'class_name': 'Lớp Nhà Trẻ 1',
-            'email': 'hoa.le@school.edu.vn',
-            'phone': '0901234567',
-            'start_date': '15/1/2024',
-            'salary': '7.500.000 đ'
-        }
-    ]
-    return render_template(
-        "admin/teacher-management.html",
-        teachers=teachers
-    )
-
-
-@app.route('/admin/regulation_management')
-def admin_regulation_management():
-    """
-    Trang quản lý quy định (Admin)
-    """
-    return render_template("admin/regulation-management.html")
-
-
-@app.route('/admin/statistics')
-def admin_statistics():
-    """
-    Trang thống kê (Admin)
-    """
-    return render_template("admin/statistics.html")
-
 
 # ==================== MAIN ENTRY POINT ====================
 if __name__ == '__main__':

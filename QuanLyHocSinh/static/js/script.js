@@ -6,6 +6,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const modal = $("#student-modal");
     const form = $("#student-form");
 
+    const todayStr = () => {
+    const d = new Date();
+    return d.toISOString().split('T')[0];
+};
+
+
     const fields = {
         id: $("#student-id"),
         name: $("#student-name"),
@@ -149,7 +155,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!res.success) throw "Cập nhật thất bại";
                 updateHealthCard(payload);
                 closeModal();
-                alert("✅ Cập nhật thành công");
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Thành công',
+                    text: 'Cập nhật thành công',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+
             })
             .catch(err => alert(err));
     });
@@ -157,6 +170,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const updateHealthCard = ({id, weight, temp}) => {
         const card = $(`.student-card[data-id="${id}"]`);
         if (!card) return;
+
+        const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+
+    const title = card.querySelector('.latest-health-title');
+    if (title) {
+        title.textContent = `Sức khỏe gần nhất (${day}/${month}/${year})`;
+    }
 
         $(".health-details div:nth-child(1) p:nth-child(2)", card).textContent =
             weight ? `${weight} kg` : "-- kg";
@@ -197,13 +220,53 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
+/* ================= TUITION ================= */
+function payStudentTuition(btn) {
+    const card = btn.closest(".student-tuition-card");
+    const invoiceId = card?.dataset.invoiceId;
+    if (!invoiceId || !confirm("Xác nhận đóng học phí?")) return;
 
+    btn.disabled = true;
+
+    fetch("/api/invoices/pay", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({invoice_id: invoiceId})
+    })
+        .then(r => r.json())
+        .then(res => {
+            if (!res.success) throw res.message;
+
+            // ✅ Update status
+            const statusEl = card.querySelector(".tuition-status");
+            if (statusEl) {
+                statusEl.textContent = "Đã thanh toán";
+                statusEl.classList.remove("text-danger", "status-unpaid");
+                statusEl.classList.add("text-success", "status-paid");
+            }
+
+            // ✅ Replace action button
+            btn.parentElement.innerHTML = `
+                <a href="/invoice/${invoiceId}"
+                   class="btn-action-fee btn-export-invoice">
+                    Xuất HĐ
+                </a>
+            `;
+        })
+        .catch(err => alert(err))
+        .finally(() => btn.disabled = false);
+}
 
 /* ================= FILTER ================= */
 function searchStudents() {
     const kw = document.getElementById("search-input").value.trim();
     window.location.href =
         `/students?keyword=${encodeURIComponent(kw)}&page=1`;
+}
+
+function applyDateFilter() {
+    const date = $("#record-date").value;
+    location.href = `/meal-management?date=${date}&page=1`;
 }
 
 

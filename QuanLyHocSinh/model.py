@@ -7,7 +7,10 @@ from flask_login import UserMixin
 from datetime import datetime
 
 from enum import Enum as UserEnum
-from QuanLyHocSinh import db, app
+try:
+    from QuanLyHocSinh import db, app
+except ImportError:
+    from . import db, app
 
 
 class BaseModel(db.Model):
@@ -15,7 +18,7 @@ class BaseModel(db.Model):
     id = Column(Integer, primary_key=True, autoincrement=True)
     active = Column(Boolean, default=True)
 
-# ========== ENUM ROLE THAY CHO BẢNG ROLE ==========
+# ========== ENUM ROLE ==========
 class UserRole(UserEnum):
     TEACHER = 1
     ADMIN = 2
@@ -120,11 +123,18 @@ class MealAttendance(BaseModel):
     attendance_date = Column(DateTime, nullable=False)
     created_by = Column(Integer, ForeignKey('users.id'))
     note = Column(String(255))
+    
+    # Relationships
+    student = relationship('Student', backref='meal_records', foreign_keys=[student_id])
+    creator = relationship('User', backref='created_meal_records', foreign_keys=[created_by])
 
     # Index để tối ưu query
     __table_args__ = (
         Index('idx_student_date', 'student_id', 'attendance_date'),
     )
+    
+    def __str__(self):
+        return f"MealAttendance(student={self.student_id}, date={self.attendance_date.strftime('%Y-%m-%d') if self.attendance_date else 'N/A'})"
 
 
 # ======================= INVOICE =======================

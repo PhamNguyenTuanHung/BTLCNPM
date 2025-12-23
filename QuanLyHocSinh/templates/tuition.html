@@ -12,7 +12,7 @@
                 <p class="student-count-text">Hôm nay: <span class="count-highlight">{{today}}</span>
             </div>
             <button id="export-fee-btn" class="btn-action-fee btn-export-invoice"
-                    style="background: linear-gradient(to right, #059669, #10B981);">
+                style="background: linear-gradient(to right, #059669, #10B981);">
                 Xuất Báo cáo Chi phí
             </button>
         </div>
@@ -33,175 +33,179 @@
 
     {# 📊 2. CHI TIẾT BẢNG DỮ LIỆU #}
     <div class="content-card full-width">
-        <h3>Chi tiết Bữa ăn & Học phí</h3>
-        <form method="get" class="filter-controls">
-            <input type="text"
-                   name="keyword"
-                   placeholder="Tìm kiếm theo tên trẻ hoặc phụ huynh..."
-                   value="{{ keyword if keyword else '' }}"
-                   class="search-input">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+                Quản lý học phí
+            </h3>
 
-            <select name="status" class="filter-select" onchange="this.form.submit()">
-                <option value="" {% if not selected_status %}selected{% endif %}>Tất cả</option>
-                <option value="paid" {% if selected_status=='paid' %}selected{% endif %}>Đã đóng</option>
-                <option value="unpaid" {% if selected_status=='unpaid' %}selected{% endif %}>Chưa đóng</option>
-            </select>
+        </div>
 
-        </form>
+        <div class="filter-section">
+            <form method="get" class="filter-controls">
+                <input type="text" name="keyword" placeholder="Tìm kiếm theo tên trẻ..."
+                    value="{{ keyword | default('', true) }}" class="search-input">
+            </form>
+        </div>
 
         <div class="meal-table-wrapper">
             <table class="data-table">
                 <thead>
-                <tr>
-                    <th>STT</th>
-                    <th>Tên trẻ</th>
-                    <th>Học phí cơ bản</th>
-                    <th>Bữa ăn & Chi phí</th>
-                    <th>Tổng cộng</th>
-                    <th>Trạng thái thanh toán</th>
-                    <th>Hành động</th>
-                </tr>
+                    <tr>
+                        <th>STT</th>
+                        <th>TÊN TRẺ</th>
+                        <th>SỐ BỮA ĂN</th>
+                        <th>TỔNG CỘNG</th>
+                        <th>HÀNH ĐỘNG</th>
+                    </tr>
                 </thead>
                 <tbody>
-                {% for record in invoices %}
-                {# Sử dụng biến đã được tính toán trong hàm Flask /tuition #}
-                {% set total_meal_cost = record.total_meal_cost | default(0) %}
-                {% set base_fee = record.tuition_fee | default(3000000) %}
-                {% set total_fee = record.calculated_total_fee | default(base_fee + total_meal_cost) %}
-                {% set meals_eaten = record.meal_days | default(0) %}
-                {% set paid_status = record.paid_status | default(false) %}
+                    {% for record in invoices %}
+                    {% set meal_days = record.meal_days | default(0) %}
+                    {% set total_fee = record.total_amount | default(0) %}
+                    {% set invoice_id = record.invoice_id %}
 
-                <tr class="student-tuition-card"
-                    data-invoice-id=" {{ record.invoice_id }}">
-                    <td data-label="STT">{{ loop.index }}</td>
-                    <td data-label="Tên trẻ">{{ record.student_name }}</td>
-                    <td data-label="Học phí cơ bản" class="text-bold">{{ "{:,.0f}".format(base_fee) }} đ</td>
+                    <tr class="student-tuition-card" data-invoice-id="{{ invoice_id if invoice_id else 'null' }}"
+                        data-student-id="{{ record.student_id }}">
+                        <td data-label="STT">{{ loop.index }}</td>
+                        <td data-label="Tên trẻ" class="text-bold">{{ record.student_name }}</td>
+                        <td data-label="Số bữa ăn" class="text-center">{{ meal_days }}</td>
+                        <td data-label="Tổng cộng" class="text-success text-bold">
+                            {{ "{:,.0f}".format(total_fee) }} đ
+                        </td>
 
-                    {# GỘP CỘT: Số ngày ăn thêm và Tiền ăn thêm #}
-                    <td data-label="Bữa ăn & Chi phí">
-                        <div style="font-size: 0.9em; color: var(--color-text-medium);">
-                            Số ngày ăn: <span class="text-bold">{{ meals_eaten }}</span>
-                        </div>
-                        <div class="text-warning text-bold" style="margin-top: 0.25em;">
-                            {{ "{:,.0f}".format(total_meal_cost) }} đ
-                        </div>
-                    </td>
+                        {# HÀNH ĐỘNG #}
+                        <td data-label="Hành động">
+                            {% if invoice_id %}
+                            {# Đã có invoice → Xuất hóa đơn #}
+                            <button class="btn-action-fee btn-export-invoice" onclick="exportPDF({{ invoice_id }})"
+                                style="display: flex; align-items: center; gap: 6px; justify-content: center;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                                Xuất hóa đơn
+                            </button>
+                            {% else %}
+                            {# Chưa có invoice → Thanh toán #}
+                            <button class="btn-action-fee btn-pay-fee" onclick="payInvoice(this)">
+                                Thanh toán
+                            </button>
+                            {% endif %}
+                        </td>
 
-                    {# Tổng cộng #}
-                    <td data-label="Tổng phí phải thu (VND)" class="text-success text-bold">
-                        {{ "{:,.0f}".format(total_fee) }} đ
-                    </td>
-
-                    {# TRẠNG THÁI THANH TOÁN #}
-                    <td data-label="Trạng thái"
-                        class="tuition-status
-                           {% if record.is_paid %}
-                               text-success status-paid
-                           {% else %}
-                               text-danger status-unpaid
-                           {% endif %}">
-                        {% if record.is_paid %}
-                        Đã thanh toán
-                        {% else %}
-                        Chưa thanh toán
-                        {% endif %}
-                    </td>
-
-                    {# HÀNH ĐỘNG #}
-                    <td data-label="Hành động">
-                        {% if record.is_paid %}
-                        <a href="/invoice/{{ record.invoice_id }}"
-                           class="btn-action-fee btn-export-invoice">
-                            Xuất HD
-                        </a>
-                        {% else %}
-                        <button class="btn-action-fee btn-pay-fee"
-                                onclick="payStudentTuition(this)">
-                            Nộp phí
-                        </button>
-                        {% endif %}
-                    </td>
-
-                </tr>
-                {% endfor %}
+                    </tr>
+                    {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr style="background: #FFF3CD; font-weight: bold;">
+                        <td colspan="2" style="text-align: center; padding: 12px; font-size: 14px;">
+                            TỔNG CỘNG
+                        </td>
+                        <td style="text-align: center;">
+                            {% set total_meals = invoices|sum(attribute='meal_days') %}
+                            {{ total_meals }}
+                        </td>
+                        <td style="text-align: right; color: #DC2626; font-size: 15px;">
+                            {% set grand_total = invoices|sum(attribute='total_amount') %}
+                            {{ "{:,.0f}".format(grand_total) }} đ
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
+
 </div>
+
 <script>
-    /* ================= TUITION ================= */
-    function payStudentTuition(btn) {
-        const card = btn.closest(".student-tuition-card");
-        const invoiceId = card?.dataset.invoiceId;
+    /**
+     * Thanh toán hóa đơn
+     */
+    async function payInvoice(button) {
+        const row = button.closest('tr');
+        const invoiceIdStr = row.dataset.invoiceId;
+        const studentId = parseInt(row.dataset.studentId);
 
-        if (!invoiceId) return;
+        // Convert "null" string to actual null
+        const invoiceId = invoiceIdStr === 'null' ? null : parseInt(invoiceIdStr);
 
-        // 1. Xác nhận đóng học phí bằng SweetAlert2
-        Swal.fire({
-            title: 'Xác nhận thu phí?',
-            text: "Bạn có chắc chắn muốn xác nhận đóng học phí cho học sinh này?",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#28a745',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Xác nhận đóng',
-            cancelButtonText: 'Hủy'
-        }).then((result) => {
-            if (result.isConfirmed) {
+        // Hiển thị modal xác nhận
+        const confirmed = await showConfirm(
+            'Bạn có chắc chắn muốn thanh toán học phí cho hóa đơn này không?',
+            'Xác nhận thanh toán'
+        );
 
-                // Hiệu ứng Loading trên nút bấm
-                const originalText = btn.innerHTML;
-                btn.disabled = true;
-                btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang lưu...`;
+        if (!confirmed) {
+            showInfo('Đã hủy thanh toán.');
+            return;
+        }
 
-                fetch("/api/invoices/pay", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({invoice_id: invoiceId})
-                })
-                    .then(r => r.json())
-                    .then(res => {
-                        if (!res.success) throw new Error(res.message);
+        fetch('/api/invoices/pay', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                invoice_id: invoiceId,
+                student_id: studentId
+            })
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showSuccess('Thanh toán thành công!');
+                    location.reload(); // Reload để cập nhật UI
+                } else {
+                    showError('Lỗi: ' + (data.message || 'Không thể thanh toán'));
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showError('Lỗi kết nối server');
+            });
+    }
 
-                        // ✅ 2. Thông báo thành công mượt mà
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Thành công!',
-                            text: 'Đã cập nhật trạng thái đóng học phí.',
-                            timer: 1500,
-                            showConfirmButton: false
-                        });
+    /**
+     * Xuất hóa đơn PDF
+     */
+    async function exportPDF(invoiceId) {
+        // Hiển thị modal xác nhận tùy chỉnh
+        const confirmed = await showConfirm(
+            '<strong>LƯU Ý:</strong> Sau khi xuất hóa đơn, dữ liệu các ngày ăn trong tháng của trẻ sẽ bị <strong>XÓA VĨNH VIỄN</strong>!<br><br>' +
+            'Bạn có chắc chắn muốn xuất hóa đơn này không?',
+            'XÁC NHẬN XUẤT HÓA ĐƠN'
+        );
 
-                        // Cập nhật trạng thái hiển thị trên giao diện
-                        const statusEl = card.querySelector(".tuition-status");
-                        if (statusEl) {
-                            statusEl.textContent = "Đã thanh toán";
-                            statusEl.classList.remove("text-danger", "status-unpaid");
-                            statusEl.classList.add("text-success", "status-paid");
-                        }
+        if (confirmed) {
+            // Người dùng xác nhận → Mở PDF
+            const pdfUrl = `/api/invoices/export-pdf/${invoiceId}`;
+            window.open(pdfUrl, '_blank');
+            showSuccess('Đang mở hóa đơn...');
+        } else {
+            showInfo('Đã hủy xuất hóa đơn.');
+        }
+    }
 
-                        // Chuyển nút bấm thành nút Xuất Hóa Đơn
-                        btn.parentElement.innerHTML = `
-                    <a href="/invoice/${invoiceId}"
-                       class="btn-action-fee btn-export-invoice">
-                        <i class="fas fa-file-invoice"></i> Xuất HĐ
-                    </a>
-                `;
-                    })
-                    .catch(err => {
-                        // ✅ 3. Thông báo lỗi bằng SweetAlert2
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Lỗi!',
-                            text: err.message || err
-                        });
+    /**
+     * Xuất báo cáo chi phí Excel
+     */
+    document.getElementById('export-fee-btn').addEventListener('click', function () {
+        const url = '/api/tuition/export-excel';
+        window.location.href = url;
+        showSuccess('Đang tải báo cáo chi phí...');
+    });
+</script>
 
-                        // Khôi phục lại nút nếu lỗi
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
-                    });
-            }
-        });
-    }</script>
+{% include 'layout/message.html' %}
 {% endblock %}

@@ -12,7 +12,7 @@
                 <p class="student-count-text">
                     Hiện có
                     <span id="student-count" class="count-highlight">
-                    {{ current_student_count }}/{{max_capacity}}
+                        {{ current_student_count }}/{{max_capacity}}
                     </span> trẻ trong lớp
                 </p>
             </div>
@@ -29,30 +29,28 @@
 
         <div class="search-box">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                 class="icon-search">
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="icon-search">
                 <circle cx="11" cy="11" r="8"></circle>
                 <path d="m21 21-4.3-4.3"></path>
             </svg>
             <input type="text" id="search-input" placeholder="Tìm kiếm theo tên trẻ hoặc phụ huynh..."
-                   class="search-input"
-                   value="{{ request.args.get('keyword', '') }}"
-                   onkeydown="if(event.keyCode === 13) searchStudents()">
+                class="search-input" value="{{ request.args.get('keyword', '') }}"
+                onkeydown="if(event.keyCode === 13) searchStudents()">
         </div>
-
     </div>
 
     <div id="student-list" class="student-cards-grid">
         {% for student in students %}
         {% set record = student.current_record or {} %}
         <div class="student-card {% if record.temp and record.temp|float >= 37.5 %}fever{% endif %}"
-             data-id="{{ student.id }}">
+            data-id="{{ student.id }}">
             <div class="card-header">
                 <div class="info-group">
                     <div class="avatar-wrapper {{ 'male' if student.gender == 'Nam' else 'female' }}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                             class="icon-user {{'male' if student.gender == 'Nam' else 'female'}}">
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="icon-user {{'male' if student.gender == 'Nam' else 'female'}}">
                             <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
                             <circle cx="12" cy="7" r="4"></circle>
                         </svg>
@@ -77,14 +75,16 @@
             <div class="health-box">
                 <div class="health-header">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                         class="icon-health">
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="icon-health">
                         <path
-                                d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z">
+                            d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z">
                         </path>
                         <path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"></path>
                     </svg>
-                    <span>Sức khỏe hôm nay</span>
+                    <span class="latest-health-title">
+    Sức khỏe gần nhất{% if record.date %} ({{ record.date.strftime('%d/%m/%Y') }}){% endif %}
+</span>
                 </div>
 
                 <div class="health-details">
@@ -112,11 +112,11 @@
             <div class="card-actions">
                 <button class="btn-action btn-edit" data-id="{{student.id}}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                         class="icon-action">
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="icon-action">
                         <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                         <path
-                                d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z">
+                            d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z">
                         </path>
                     </svg>
                     Cập nhật sức khỏe
@@ -125,26 +125,7 @@
         </div>
         {% endfor %}
     </div>
-    <div class="pagination">
-        {% if pagination.has_prev %}
-        <a href="?page={{ pagination.current_page - 1 }}{% if keyword %}&keyword={{ keyword }}{% endif %}">
-            «
-        </a>
-        {% endif %}
-
-        {% for p in range(1, pagination.pages + 1) %}
-        <a href="?page={{ p }}{% if keyword %}&keyword={{ keyword }}{% endif %}"
-           class="{{ 'active' if p == pagination.current_page else '' }}">
-            {{ p }}
-        </a>
-        {% endfor %}
-
-        {% if pagination.has_next %}
-        <a href="?page={{ pagination.current_page + 1 }}{% if keyword %}&keyword={{ keyword }}{% endif %}">
-            »
-        </a>
-        {% endif %}
-    </div>
+    {% include 'layout/pagination.html' %}
 
 
     <!--    <div id="student-modal" class="modal-overlay">-->
@@ -248,16 +229,12 @@
 
                             <div>
                                 <p class="detail-label">Cân nặng (kg)</p>
-                                <input type="number" step="0.1"
-                                       id="student-weight" name="weight"
-                                       class="health-input">
+                                <input type="number" step="0.1" id="student-weight" name="weight" class="health-input">
                             </div>
 
                             <div>
                                 <p class="detail-label">Nhiệt độ (°C)</p>
-                                <input type="number" step="0.1"
-                                       id="student-temp" name="temp"
-                                       class="health-input">
+                                <input type="number" step="0.1" id="student-temp" name="temp" class="health-input">
                             </div>
 
                         </div>
@@ -276,5 +253,9 @@
             </form>
         </div>
     </div>
+
+
 </div>
+
+{% include 'layout/message.html' %}
 {% endblock %}

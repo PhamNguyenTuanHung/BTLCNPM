@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hoa don hoc phi</title>
+    <style>
+        @page {
+            size: 80mm 150mm;
+            margin: 3mm;
+        }
+
+        body {
+            font-family: "Times New Roman", Times, serif;
+            font-size: 10px;
+            line-height: 1;
+            color: #000;
+            margin: 0;
+            padding: 0;
+            width: 80mm;
+        }
+
+        .invoice-container {
+            width: 100%;
+            padding: 5px;
+        }
+
+        .school-name {
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+
+        .date {
+            text-align: center;
+            font-size: 10px;
+            margin: 5px 0 10px 0;
+        }
+
+        .separator {
+            border-top: 1px dashed #000;
+            margin: 5px 0;
+        }
+
+        .info-section {
+            margin: 8px 0;
+        }
+
+        .info-row {
+            margin-bottom: 5px;
+            font-size: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+        }
+
+        th {
+            font-weight: bold;
+            text-align: left;
+            padding: 5px 2px;
+            border-bottom: 1px solid #000;
+            font-size: 9px;
+        }
+
+        td {
+            padding: 5px 2px;
+            font-size: 9px;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .total-section {
+            margin-top: 8px;
+            padding-top: 5px;
+            border-top: 1px solid #000;
+        }
+
+        .total-row {
+            font-size: 11px;
+            font-weight: bold;
+            text-align: left;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="invoice-container">
+        <!-- Ten truong -->
+        <div class="school-name">TRUONG MAM NON HOA MAI</div>
+
+        <!-- Tieu de -->
+        <div class="title">HOA DON HOC PHI</div>
+
+        <!-- Thang/Nam -->
+        <div class="date">Thang {{ invoice.month }}/{{ invoice.year }}</div>
+
+        <div class="separator"></div>
+
+        <!-- Thong tin -->
+        <div class="info-section">
+            <div class="info-row">Hoc sinh: {{ student.lastName }} {{ student.firstName }}</div>
+            <div class="info-row">Lop: {{ student.class_.name if student.class_ else 'Chua xep lop' }}</div>
+            <div class="info-row">Phu huynh: {{ student.parentName }}</div>
+            <div class="info-row">So dien thoai: {{ student.parentPhone }}</div>
+            {% if invoice.paymentDate %}
+            <div class="info-row">Ngay thanh toan: {{ invoice.paymentDate.strftime('%d/%m/%Y') }}</div>
+            {% endif %}
+            <div class="info-row">Ngay lap: {{ invoice.createdAt.strftime('%d/%m/%Y') }}</div>
+        </div>
+
+        <div class="separator"></div>
+
+        <!-- Bang khoan thu -->
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 45%;">Khoan thu</th>
+                    <th style="width: 25%;" class="text-center">SL</th>
+                    <th style="width: 30%;" class="text-right">Tien</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Hoc phi</td>
+                    <td class="text-center">1 th</td>
+                    <td class="text-right">{{ "{:,.0f}".format(invoice.tuition) }}</td>
+                </tr>
+                <tr>
+                    <td>Tien an</td>
+                    <td class="text-center">{{ invoice.mealDays }}ng</td>
+                    <td class="text-right">{{ "{:,.0f}".format(invoice.mealFee * invoice.mealDays) }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="separator"></div>
+
+        <!-- Tong cong -->
+        <div class="total-section">
+            <div class="total-row">THANH TIEN: {{ "{:,.0f}".format(invoice.total) }} VND</div>
+        </div>
+
+        <div class="separator"></div>
+    </div>
+
+</body>
+
+</html>

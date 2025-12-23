@@ -3,8 +3,8 @@
     <nav class="nav-menu" id="sidebar-nav">
 
         <!-- Danh sách trẻ -->
-        <a class="nav-item {% if request.endpoint == 'students_page' %}active{% endif %}"
-            href="{{ url_for('students_page') }}" data-page="students">
+        <a class="nav-item {% if request.endpoint == 'students' %}active{% endif %}" href="{{ url_for('students') }}"
+            data-page="students">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav">
                 <path d="M9 12h.01"></path>
@@ -55,17 +55,6 @@
             Học phí
         </a>
 
-        <!-- Thống kê -->
-        <a class="nav-item {% if request.endpoint == 'statistics' %}active{% endif %}"
-            href="{{ url_for('statistics') }}" data-page="statistics">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-nav">
-                <path d="M3 3v16a2 2 0 0 0 2 2h16"></path>
-                <path d="M18 17V9"></path>
-                <path d="M13 17V5"></path>
-                <path d="M8 17v-3"></path>
-            </svg>
-            Thống kê
-        </a>
+
     </nav>
 </aside>

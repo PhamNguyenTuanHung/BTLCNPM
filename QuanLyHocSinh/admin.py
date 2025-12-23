@@ -1,11 +1,7 @@
 # admin.py - Flask-Admin Configuration
 # Cấu hình giao diện quản trị cho dự án Quản lý học sinh
-import base64
-import io
-import matplotlib.pyplot as plt
 
-import pdfkit
-from flask import redirect, request, render_template, make_response
+from flask import redirect
 from flask_admin import Admin, AdminIndexView, BaseView, expose
 from flask_admin.contrib.sqla import ModelView
 from flask_login import current_user, logout_user
@@ -16,7 +12,7 @@ from wtforms.validators import ValidationError
 from QuanLyHocSinh import dao
 from QuanLyHocSinh import db, app
 from QuanLyHocSinh.model import Student
-from QuanLyHocSinh.model import User, Class, HealthRecord, Invoice, SystemConfig, UserRole
+from QuanLyHocSinh.model import User, Class, HealthRecord, Invoice, SystemConfig, UserRole, MealAttendance
 
 
 # ==================== BASE ADMIN VIEW ====================
@@ -24,6 +20,126 @@ class AuthenticatedModelView(ModelView):
     """
     Base view yêu cầu xác thực và quyền ADMIN
     """
+    
+    # Enable export with both CSV and custom XLSX
+    can_export = True
+    export_types = ['csv', 'xlsx']
+    
+    def _export_xlsx(self):
+        """
+        Custom Excel export handler với formatting đẹp
+        """
+        from flask import Response
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        from io import BytesIO
+        from datetime import datetime
+        
+        # Get current view data
+        count, query = self._get_list_filter_args()
+        
+        # Get columns to export  
+        export_columns = self.get_export_columns()
+        
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = self.name or "Export"
+        
+        # Define styles
+        # Header style
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        header_border = Border(
+            left=Side(style='thin', color="FFFFFF"),
+            right=Side(style='thin', color="FFFFFF"),
+            top=Side(style='thin', color="FFFFFF"),
+            bottom=Side(style='thin', color="FFFFFF")
+        )
+        
+        # Data cell border
+        data_border = Border(
+            left=Side(style='thin', color="D3D3D3"),
+            right=Side(style='thin', color="D3D3D3"),
+            top=Side(style='thin', color="D3D3D3"),
+            bottom=Side(style='thin', color="D3D3D3")
+        )
+        
+        # Alternating row colors
+        even_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+        odd_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+        
+        # Write headers
+        for col_idx, col_name in enumerate(export_columns, 1):
+            cell = ws.cell(row=1, column=col_idx, value=col_name)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = header_border
+        
+        # Write data with formatting
+        for row_idx, row in enumerate(query.all(), 2):
+            # Alternating row color
+            row_fill = even_fill if row_idx % 2 == 0 else odd_fill
+            
+            for col_idx, col_name in enumerate(export_columns, 1):
+                value = getattr(row, col_name, '')
+                
+                # Format value based on type
+                if isinstance(value, datetime):
+                    display_value = value.strftime('%d/%m/%Y %H:%M')
+                elif value is None:
+                    display_value = ''
+                else:
+                    display_value = str(value)
+                
+                cell = ws.cell(row=row_idx, column=col_idx, value=display_value)
+                cell.border = data_border
+                cell.fill = row_fill
+                cell.alignment = Alignment(vertical="center")
+        
+        # Auto-size columns with limits
+        for col_idx, column in enumerate(ws.columns, 1):
+            max_length = 0
+            column_letter = get_column_letter(col_idx)
+            
+            for cell in column:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except:
+                    pass
+            
+            # Set width with min and max limits
+            adjusted_width = min(max(max_length + 2, 10), 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Freeze header row
+        ws.freeze_panes = 'A2'
+        
+        # Add auto-filter
+        if len(export_columns) > 0:
+            ws.auto_filter.ref = f"A1:{get_column_letter(len(export_columns))}1"
+        
+        # Set row height for header
+        ws.row_dimensions[1].height = 30
+        
+        # Save to BytesIO
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        # Return response
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{self.name or 'export'}_{timestamp}.xlsx"
+        
+        return Response(
+            output.getvalue(),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
 
     def is_accessible(self):
         print(
@@ -98,7 +214,7 @@ class UserView(AuthenticatedModelView):
 # ==================== CLASS MANAGEMENT VIEW ====================
 
 
-class ClassView(ModelView):
+class ClassView(AuthenticatedModelView):
     column_list = [
         'id', 'name', 'numberStudent', 'max_capacity',
         'semester', 'fromYear', 'toYear', 'teacher'
@@ -106,23 +222,11 @@ class ClassView(ModelView):
     column_searchable_list = ['name']
     column_filters = ['semester', 'fromYear', 'toYear', 'teacher_id']
     column_editable_list = []
-    can_export = True
     page_size = 20
     form_excluded_columns = ['invoices']
     form_columns = [
         'name', 'semester', 'fromYear', 'toYear', 'active', 'teacher', 'students'
     ]
-
-    column_labels = {
-        'id': 'ID',
-        'name': 'Tên lớp',
-        'numberStudent': 'Số học sinh hiện tại',
-        'max_capacity': 'Sức chứa tối đa',
-        'semester': 'Học kỳ',
-        'fromYear': 'Năm bắt đầu',
-        'toYear': 'Năm kết thúc',
-        'teacher': 'Giáo viên phụ trách'
-    }
 
     # ---------------- FORMATTERS ----------------
     def _current_student_count_formatter(view, context, model, name):
@@ -291,46 +395,21 @@ class StudentView(AuthenticatedModelView):
         super(StudentView, self).after_model_change(form, model, is_created)
 
         if is_created:
-            from QuanLyHocSinh.model import HealthRecord, Invoice  # Import thêm Invoice
-            from QuanLyHocSinh import db, dao  # Giả sử bạn có file dao để lấy config
+            # Tạo HealthRecord ban đầu cho học sinh mới
+            from QuanLyHocSinh.model import HealthRecord
+            from QuanLyHocSinh import db
             from datetime import datetime
 
-            now = datetime.now()
-
-            # 1. Tạo HealthRecord ban đầu
             initial_health_record = HealthRecord(
                 weight=0.0,
                 bodyTemperature=36.5,
-                note='Khởi tạo hệ thống',
+                note='',
                 feverWarning=False,
-                student_id=model.id,
-                recordingDate=now
+                student_id=model.id,  # Lúc này model.id đã có giá trị
+                recordingDate=datetime.utcnow()
             )
             db.session.add(initial_health_record)
-
-            # 2. Tự động tạo Hóa đơn tháng hiện tại
-            # Lấy tiền học và tiền ăn mặc định từ cấu hình hệ thống
-            tuition_fee = 3000000  # Hoặc dao.get_system_config('tuition', 3000000)
-            meal_fee_unit = 50000  # Hoặc dao.get_system_config('mealFee', 50000)
-
-            initial_invoice = Invoice(
-                student_id=model.id,
-                teacher_id=model.class_.teacher_id if model.class_ else None,
-                month=now.month,
-                year=now.year,
-                tuition=tuition_fee,
-                mealDays=0,  # Mới thêm nên số ngày ăn bằng 0
-                mealFee=meal_fee_unit,
-                total=tuition_fee,  # Tổng tiền tạm tính bằng tiền học phí
-                paymentDate=None  # Chưa thanh toán
-            )
-            db.session.add(initial_invoice)
-
-            # Lưu tất cả thay đổi
-            try:
-                db.session.commit()
-            except Exception as e:
-                db.session.rollback()
+            db.session.commit()
 
 
 # ==================== HEALTH RECORD VIEW ====================
@@ -372,9 +451,9 @@ class InvoiceView(AuthenticatedModelView):
     """
     Quản lý hóa đơn học phí
     """
-    column_list = ['id', 'student', 'mealDays', 'mealFee', 'tuition', 'total', 'paymentDate', 'teacher']
+    column_list = ['id', 'student','student_id', 'mealDays', 'mealFee', 'tuition', 'total', 'paymentDate', 'teacher']
     column_searchable_list = []
-    column_filters = ['paymentDate', 'createdAt', 'student_id', 'teacher_id']
+    column_filters = ['paymentDate', 'createdAt', 'student_id', 'teacher_id','student.firstName']
     column_labels = {
         'id': 'ID',
         'student': 'Học sinh',
@@ -386,7 +465,8 @@ class InvoiceView(AuthenticatedModelView):
         'createdAt': 'Ngày tạo',
         'teacher': 'Giáo viên tạo',
         'student_id': 'ID Học sinh',
-        'teacher_id': 'ID Giáo viên'
+        'teacher_id': 'ID Giáo viên',
+        'student_name': 'Tên học sinh',
     }
     can_export = True
     page_size = 30
@@ -407,6 +487,64 @@ class InvoiceView(AuthenticatedModelView):
 
     # Sắp xếp theo ngày tạo mới nhất
     column_default_sort = ('createdAt', True)
+
+
+# ==================== MEAL ATTENDANCE VIEW ====================
+class MealAttendanceView(AuthenticatedModelView):
+    """
+    Quản lý điểm danh bữa ăn
+    """
+    column_list = ['id', 'student', 'attendance_date', 'created_by_user', 'note', 'active']
+    column_searchable_list = ['note']
+    column_filters = ['attendance_date', 'student_id', 'created_by', 'active']
+    column_labels = {
+        'id': 'ID',
+        'student': 'Học sinh',
+        'student_id': 'Mã học sinh',
+        'attendance_date': 'Ngày ăn',
+        'created_by': 'Người tạo',
+        'created_by_user': 'Giáo viên tạo',
+        'note': 'Ghi chú',
+        'active': 'Hoạt động'
+    }
+    can_export = True
+    page_size = 50
+    
+    # Sắp xếp theo ngày mới nhất
+    column_default_sort = ('attendance_date', True)
+    
+    # Custom formatter cho attendance_date
+    def _attendance_date_formatter(view, context, model, name):
+        from QuanLyHocSinh.utils import format_date_display
+        if model.attendance_date:
+            return model.attendance_date.strftime('%d/%m/%Y')
+        return ''
+    
+    # Custom formatter to display created_by user info
+    def _created_by_formatter(view, context, model, name):
+        if model.created_by:
+            user = User.query.get(model.created_by)
+            if user:
+                return f"{user.lastName} {user.firstName}"
+        return ''
+    
+    column_formatters = {
+        'attendance_date': _attendance_date_formatter,
+        'created_by_user': _created_by_formatter
+    }
+    
+    # Form configuration
+    form_excluded_columns = []
+    
+    # Override to set default date to today
+    def on_model_change(self, form, model, is_created):
+        """
+        Set created_by automatically if creating new record
+        """
+        if is_created and not model.created_by:
+            model.created_by = current_user.id
+        
+        super(MealAttendanceView, self).on_model_change(form, model, is_created)
 
 
 # ==================== SYSTEM CONFIG VIEW ====================
@@ -431,114 +569,74 @@ class SystemConfigView(AuthenticatedModelView):
     # Sắp xếp theo key
     column_default_sort = ('key', False)
 
-    def on_model_change(self, form, model, is_created):
-        """
-        model: instance SystemConfig vừa được lưu
-        is_created: True nếu là thêm mới, False nếu là sửa
-        """
-        from QuanLyHocSinh.model import Invoice, db
-
-        # Chỉ update những hóa đơn chưa thanh toán
-        today = datetime.today()
-        current_month = today.month
-        current_year = today.year
-
-        # Chỉ lấy các hóa đơn chưa thanh toán của tháng hiện tại
-        invoices = Invoice.query.filter(
-            Invoice.paymentDate == None,
-            Invoice.month == current_month,
-            Invoice.year == current_year
-        ).all()
-        for inv in invoices:
-            if model.key == 'mealFee':
-                # Cập nhật mealFee từ config mới
-                inv.mealFee = float(model.value)
-                inv.total = (inv.tuition or 0) + (inv.mealFee or 0) * (inv.mealDays or 0)
-            elif model.key == 'tuition':
-                # Nếu bạn có key 'tuition' trong config để thay đổi học phí
-                inv.tuition = float(model.value)
-                inv.total = (inv.tuition or 0) + (inv.mealFee or 0) * (inv.mealDays or 0)
-            # Có thể thêm các key khác tương tự
-
-        db.session.commit()
-
-        # Gọi super để giữ các xử lý mặc định của Flask-Admin
-        return super().on_model_change(form, model, is_created)
-
 
 # ==================== STATISTICS VIEW ====================
-
-from collections import OrderedDict
-from datetime import datetime
-
-
 class StatsView(BaseView):
+    """
+    Trang thống kê và báo cáo
+    """
+
     @expose('/')
     def index(self):
-        class_id = request.args.get('class_id', type=int)
-        month = request.args.get('month', type=int)
-        year = request.args.get('year', type=int)
-
-        # ================== Tổng học sinh / lớp / giáo viên ==================
-        students_query = Student.query
-        if class_id:
-            students_query = students_query.filter_by(class_id=class_id)
-        total_students = students_query.count()
-        total_classes = Class.query.count()
-        total_teachers = User.query.filter_by(user_role=UserRole.TEACHER).count()
-
-        # ================== Tỷ lệ nam/nữ ==================
-        male_count = students_query.filter_by(gender=True).count()
-        female_count = students_query.filter_by(gender=False).count()
-        gender_ratio = {'male': male_count, 'female': female_count}
-
-        # ================== Sĩ số theo lớp ==================
-        class_sizes_raw = students_query.with_entities(
-            Student.class_id, db.func.count(Student.id)
-        ).group_by(Student.class_id).all()
-        class_sizes = {}
-        for cid, count in class_sizes_raw:
-            class_name = "Chưa xếp lớp"
-            if cid:
-                c = Class.query.get(cid)
-                class_name = c.name if c else "N/A"
-            class_sizes[class_name] = count
-
-        # ================== Doanh thu theo tháng ==================
-        now = datetime.now()
-        year_filter = year if year else now.year
-
-        invoice_query = Invoice.query.join(Student)
-        if class_id:
-            invoice_query = invoice_query.filter(Student.class_id == class_id)
-        if month:
-            invoice_query = invoice_query.filter(Invoice.month == month)
-        invoice_query = invoice_query.filter(Invoice.year == year_filter)
-
-        revenue_by_month = OrderedDict((str(m), 0) for m in range(1, 13))
-        total_revenue = sum(
-            (inv.total if inv.total is not None else inv.calculated_total) or 0
-            for inv in invoice_query.all()
-        )
-        for inv in invoice_query.all():
-            # Sử dụng tổng thực tế nếu có, fallback sang calculated_total
-            total_amount = inv.total if inv.total is not None else inv.calculated_total
-            revenue_by_month[str(inv.month)] += total_amount or 0
-
-        # ================== Danh sách lớp & năm cho filter ==================
-        classes = Class.query.all()
-        years = [y[0] for y in db.session.query(db.func.distinct(Invoice.year)).all()]
-
-        return self.render('admin/statistics.html',
-                           total_students=total_students,
-                           total_classes=total_classes,
-                           total_teachers=total_teachers,
-                           total_revenue=total_revenue,
-                           gender_ratio=gender_ratio,
-                           class_sizes=class_sizes,
-                           revenue_by_month=revenue_by_month,
-                           classes=classes,
-                           years=years)
+        """
+        Trang thống kê với biểu đồ tương tác (sidebar layout)
+        """
+        from sqlalchemy import func
+        from QuanLyHocSinh import dao
+        from datetime import date
+        from flask import request
+        
+        # Get year from query parameter or use current year
+        current_year = request.args.get('year', date.today().year, type=int)
+        total_students = Student.query.filter_by(active=True).count()
+        
+        # 2. Tổng số lớp
+        total_classes = Class.query.filter_by(active=True).count()
+        
+        # 3. Thống kê giới tính
+        gender_stats = db.session.query(
+            Student.gender,
+            func.count(Student.id).label('count')
+        ).filter(Student.active == True).group_by(Student.gender).all()
+        
+        male_count = sum(count for gender, count in gender_stats if gender)
+        female_count = sum(count for gender, count in gender_stats if not gender)
+        
+        # 4. Thống kê sĩ số từng lớp
+        class_enrollment = dao.get_class_enrollment_stats()
+        
+        # 5. Thống kê doanh thu theo năm được chọn
+        monthly_revenue = dao.get_monthly_revenue_stats(year=current_year)
+        
+        stats_data = {
+            'total_students': total_students,
+            'total_classes': total_classes,
+            'male_count': male_count,
+            'female_count': female_count,
+            'class_enrollment': class_enrollment,
+            'monthly_revenue': monthly_revenue,
+            'current_year': current_year
+        }
+        
+        return self.render('admin/stats.html', **stats_data)
+    
+    @expose('/api/revenue-by-year')
+    def get_revenue_by_year(self):
+        """
+        API endpoint để lấy dữ liệu doanh thu theo năm (AJAX)
+        """
+        from flask import request, jsonify
+        from QuanLyHocSinh import dao
+        from datetime import date
+        
+        year = request.args.get('year', date.today().year, type=int)
+        revenue_data = dao.get_monthly_revenue_stats(year=year)
+        
+        return jsonify({
+            'success': True,
+            'data': revenue_data,
+            'year': year
+        })
 
     def is_accessible(self):
         return current_user.is_authenticated and current_user.user_role == UserRole.ADMIN
@@ -608,6 +706,7 @@ admin.add_view(ClassView(Class, db.session, name='Lớp học', category='Quản
 admin.add_view(StudentView(Student, db.session, name='Học sinh', category='Quản lý'))
 admin.add_view(UserView(User, db.session, name='Người dùng', category='Hệ thống'))
 admin.add_view(HealthRecordView(HealthRecord, db.session, name='Hồ sơ sức khỏe', category='Quản lý'))
+admin.add_view(MealAttendanceView(MealAttendance, db.session, name='Điểm danh bữa ăn', category='Quản lý'))
 admin.add_view(InvoiceView(Invoice, db.session, name='Hóa đơn'))
 admin.add_view(SystemConfigView(SystemConfig, db.session, name='Cấu hình', category='Hệ thống'))
 admin.add_view(StatsView(name='Thống kê & Báo cáo'))

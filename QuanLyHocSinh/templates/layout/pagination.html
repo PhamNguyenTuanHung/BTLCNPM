@@ -1,0 +1,24 @@
+{% if pagination.pages > 1 %}
+<div class="pagination">
+    {% if pagination.has_prev %}
+    <a
+        href="?page={{ pagination.current_page - 1 if pagination.current_page else pagination.prev_num }}{% for key, value in request.args.items() if key != 'page' %}&{{ key }}={{ value }}{% endfor %}">
+        «
+    </a>
+    {% endif %}
+
+    {% for p in range(1, pagination.pages + 1) %}
+    <a href="?page={{ p }}{% for key, value in request.args.items() if key != 'page' %}&{{ key }}={{ value }}{% endfor %}"
+        class="{{ 'active' if p == (pagination.current_page if pagination.current_page else pagination.page) else '' }}">
+        {{ p }}
+    </a>
+    {% endfor %}
+
+    {% if pagination.has_next %}
+    <a
+        href="?page={{ pagination.current_page + 1 if pagination.current_page else pagination.next_num }}{% for key, value in request.args.items() if key != 'page' %}&{{ key }}={{ value }}{% endfor %}">
+        »
+    </a>
+    {% endif %}
+</div>
+{% endif %}
